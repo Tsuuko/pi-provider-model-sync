@@ -30,9 +30,10 @@ describe("parseConfigReference", () => {
 });
 
 describe("getConfigReference", () => {
-  it("treats missing and empty config as undefined", () => {
+  it("treats missing, empty, and null config as undefined", () => {
     assert.equal(getConfigReference({ id: "a" }), undefined);
     assert.equal(getConfigReference({ id: "a", config: "" }), undefined);
+    assert.equal(getConfigReference({ id: "a", config: null }), undefined);
     assert.equal(getConfigReference({ id: "a", config: "  " }), undefined);
   });
 
@@ -126,8 +127,8 @@ describe("mergeModelIds", () => {
     const merged = mergeModelIds(existing, ["a", "b", "c"]);
     assert.deepEqual(merged, [
       { id: "a", config: "openai/gpt-5.6-sol", override: { maxTokens: 1 } },
-      { id: "b" },
-      { id: "c" }
+      { id: "b", config: null },
+      { id: "c", config: null }
     ]);
   });
 

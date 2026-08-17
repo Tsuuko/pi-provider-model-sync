@@ -117,10 +117,13 @@ Pi 標準の `models.json` を使用する。
 `config` は次のいずれも許可する。
 
 - フィールド自体を省略する
+- `null` を指定する
 - 空文字 `""` を指定する
 - `provider/model` 形式を指定する
 
-`config` が省略または空文字の場合、Pi のデフォルト値を使用する。これは、Pi の `models.json` にモデル ID だけを指定した場合と同じ扱いにする。
+`config` が省略・`null`・空文字の場合、Pi のデフォルト値を使用する。これは、Pi の `models.json` にモデル ID だけを指定した場合と同じ扱いにする。
+
+雛形では `config: null` を使用する。
 
 `config` が指定されている場合は、取得元モデルの能力情報を利用する。ただし、取得元モデルの ID と独自プロバイダの `id` は一致している必要はない。
 
@@ -222,7 +225,8 @@ OpenAI 互換の次のレスポンス形式を基本とする。
 
 ```json
 {
-  "id": "gpt-5.6-sol"
+  "id": "gpt-5.6-sol",
+  "config": null
 }
 ```
 
@@ -368,7 +372,7 @@ providers.<providerName>.models[].override
 3. `model-sources.json` に対象独自プロバイダが存在しない場合、独自プロバイダの `/models` を取得する。
 4. `/models` の `data` が空の場合はエラーにして、`model-sources.json` を変更せず終了する。
 5. 初回登録の場合、Pi の全モデル API (`https://pi.dev/api/models`) を再取得する。
-6. 初回取得した独自プロバイダのモデル一覧を `{ "id": "..." }` の雛形として `model-sources.json` に保存する。
+6. 初回取得した独自プロバイダのモデル一覧を `{ "id": "...", "config": null }` の雛形として `model-sources.json` に保存する。
 7. Pi API の取得結果を `baseUrl` を除外して `cache/models.json` に保存する。
 8. `model-sources.json` に存在する各モデル定義を読み込む。
 9. `config` が空でないモデルについて、`cache/models.json` の取得元プロバイダとモデル ID を確認する。
@@ -398,7 +402,8 @@ providers.<providerName>.models[].override
 
 ```json
 {
-  "id": "new-model"
+  "id": "new-model",
+  "config": null
 }
 ```
 
@@ -443,10 +448,12 @@ Pi の全モデル API は `/reload-provider` の実行時に再取得するた�
     "test-provider1": {
       "models": [
         {
-          "id": "gpt-5.6-sol"
+          "id": "gpt-5.6-sol",
+          "config": null
         },
         {
-          "id": "gpt-5.6-terra"
+          "id": "gpt-5.6-terra",
+          "config": null
         }
       ]
     }

@@ -2,7 +2,7 @@ export type JsonObject = Record<string, unknown>;
 
 export interface SourceModel {
   id: string;
-  config?: string;
+  config?: string | null;
   override?: JsonObject;
 }
 
@@ -82,7 +82,7 @@ export function parseConfigReference(value: string): {
 }
 
 export function getConfigReference(model: SourceModel): string | undefined {
-  if (model.config === undefined) return undefined;
+  if (model.config === undefined || model.config === null) return undefined;
   const config = model.config.trim();
   return config.length === 0 ? undefined : config;
 }
@@ -125,7 +125,7 @@ export function validateSourceModel(model: SourceModel): void {
     );
   }
 
-  if (model.config !== undefined) {
+  if (model.config !== undefined && model.config !== null) {
     parseConfigReference(model.config);
   }
 }
@@ -178,7 +178,7 @@ export function mergeModelIds(
       throw new Error("Model id from /models must not be empty.");
     }
     if (known.has(id)) continue;
-    result.push({ id });
+    result.push({ id, config: null });
     known.add(id);
   }
 
