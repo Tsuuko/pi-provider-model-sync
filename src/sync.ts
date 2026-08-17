@@ -165,9 +165,16 @@ async function ensurePiModel(
   cache: PiCatalog,
   sourceProvider: string,
   sourceModelId: string,
-  paths: ConfigPaths
+  paths: ConfigPaths,
+  fetchIfMissing: boolean
 ): Promise<PiCatalog> {
   if (cache[sourceProvider]?.[sourceModelId]) return cache;
+
+  if (!fetchIfMissing) {
+    throw new Error(
+      `Pi model ${sourceProvider}/${sourceModelId} is not cached. Run /reload-provider to refresh.`
+    );
+  }
 
   const incoming = await fetchPiProviderCatalog(sourceProvider);
   const merged = mergeCatalog(cache, incoming);
@@ -208,7 +215,8 @@ async function resolveAndRegisterProvider(
   native: NativeProviderConfig,
   source: SourceProvider,
   cache: PiCatalog,
-  paths: ConfigPaths
+  paths: ConfigPaths,
+  fetchIfMissing: boolean
 ): Promise<PiCatalog> {
   validateSourceProvider(providerName, source);
   let nextCache = cache;
@@ -226,7 +234,8 @@ async function resolveAndRegisterProvider(
         nextCache,
         sourceProvider,
         sourceModelId,
-        paths
+        paths,
+        fetchIfMissing
       );
       catalogModel = nextCache[sourceProvider]?.[sourceModelId];
       if (!catalogModel) {
@@ -336,7 +345,8 @@ export async function synchronizeAllProviders(
         nativeProvider,
         source,
         cache,
-        paths
+        paths,
+        false
       );
     } catch (error) {
       ctx.ui.notify(
@@ -377,6 +387,7 @@ export async function reloadProvider(
     nativeProvider,
     sources.providers[name],
     cache,
-    paths
+    paths,
+    true
   );
 }
