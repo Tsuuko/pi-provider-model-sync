@@ -2,6 +2,20 @@
 
 独自 URL を持つ Pi プロバイダの `/models` エンドポイントからモデル一覧を取り込み、Pi のモデルカタログ設定と結び付ける Pi package です。
 
+## インストール
+
+```bash
+pi install git:github.com/Tsuuko/pi-provider-model-sync
+```
+
+または https 形式でもインストールできます。
+
+```bash
+pi install https://github.com/Tsuuko/pi-provider-model-sync
+```
+
+プロジェクト単位にインストールする場合は `-l` を付けてください。
+
 ## 設定
 
 `.pi/agent/extensions/pi-provider-model-sync/` に設定を置きます。`~/.pi/agent/` は Pi のグローバル設定ディレクトリです（`PI_CODING_AGENT_DIR` で変更可能）。
