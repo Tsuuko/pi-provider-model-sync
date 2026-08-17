@@ -8,10 +8,10 @@
 
 ## 2. 設定ファイルの場所
 
-設定ファイルは次のディレクトリに配置する。
+設定ファイルは次のディレクトリに配置する。`~/.pi/agent/` は Pi のグローバル設定ディレクトリ（`PI_CODING_AGENT_DIR` で変更可能）。
 
 ```text
-.pi/agent/extensions/pi-provider-model-sync/
+~/.pi/agent/extensions/pi-provider-model-sync/
 ├── model-sources.json
 └── cache/
     └── models.json

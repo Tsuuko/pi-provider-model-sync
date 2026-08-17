@@ -11,20 +11,21 @@ import {
 } from "../src/config.ts";
 
 describe("getConfigPaths", () => {
-  it("builds the package-relative config paths", () => {
-    const paths = getConfigPaths("C:/work/project");
-    assert.equal(
-      paths.root,
-      resolve(
-        "C:/work/project",
-        ".pi",
-        "agent",
-        "extensions",
-        "pi-provider-model-sync"
-      )
-    );
-    assert.equal(paths.sources, join(paths.root, "model-sources.json"));
-    assert.equal(paths.cache, join(paths.root, "cache", "models.json"));
+  it("resolves paths under the agent dir", () => {
+    const agentDir = "C:/Users/test/.pi/agent";
+    process.env.PI_CODING_AGENT_DIR = agentDir;
+    try {
+      const paths = getConfigPaths();
+      const normalize = (p: string) => p.replace(/\\/g, "/");
+      assert.equal(
+        normalize(paths.root),
+        normalize(join(agentDir, "extensions", "pi-provider-model-sync"))
+      );
+      assert.equal(paths.sources, join(paths.root, "model-sources.json"));
+      assert.equal(paths.cache, join(paths.root, "cache", "models.json"));
+    } finally {
+      delete process.env.PI_CODING_AGENT_DIR;
+    }
   });
 });
 

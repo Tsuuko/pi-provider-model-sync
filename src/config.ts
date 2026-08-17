@@ -33,8 +33,12 @@ export interface ConfigPaths {
   cache: string;
 }
 
-export function getConfigPaths(cwd: string): ConfigPaths {
-  const root = resolve(cwd, ".pi", "agent", "extensions", "pi-provider-model-sync");
+export function getConfigPaths(): ConfigPaths {
+  const root = resolve(
+    getAgentDir(),
+    "extensions",
+    "pi-provider-model-sync"
+  );
   return {
     root,
     sources: join(root, "model-sources.json"),

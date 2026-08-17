@@ -303,7 +303,7 @@ export async function synchronizeAllProviders(
   pi: RegisterTarget,
   ctx: ExtensionContext
 ): Promise<void> {
-  const paths = getConfigPaths(ctx.cwd);
+  const paths = getConfigPaths();
   let { native, sources, cache } = await loadState(paths);
   const newProviders = new Map<string, string[]>();
 
@@ -367,7 +367,7 @@ export async function reloadProvider(
     throw new Error("Usage: /reload-provider <provider>");
   }
 
-  const paths = getConfigPaths(ctx.cwd);
+  const paths = getConfigPaths();
   const { native, sources } = await loadState(paths);
   const nativeProvider = native.providers[name];
   if (!nativeProvider || !isDynamicProvider(nativeProvider)) {

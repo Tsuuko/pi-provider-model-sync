@@ -4,10 +4,10 @@
 
 ## 設定
 
-`.pi/agent/extensions/pi-provider-model-sync/` に設定を置きます。
+`.pi/agent/extensions/pi-provider-model-sync/` に設定を置きます。`~/.pi/agent/` は Pi のグローバル設定ディレクトリです（`PI_CODING_AGENT_DIR` で変更可能）。
 
 ```
-.pi/agent/extensions/pi-provider-model-sync/
+~/.pi/agent/extensions/pi-provider-model-sync/
 ├── model-sources.json   # プロバイダごとのモデル一覧・config・override
 └── cache/models.json    # pi.dev から取得した Pi モデルカタログ（自動管理）
 ```
