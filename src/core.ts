@@ -213,33 +213,6 @@ export function normalizeFullCatalog(payload: unknown): PiCatalog {
   return catalog;
 }
 
-export function normalizeProviderCatalog(
-  provider: string,
-  payload: unknown
-): PiCatalog {
-  if (!isRecord(payload)) {
-    throw new Error(`The Pi provider response for ${provider} must be an object.`);
-  }
-
-  const direct = isRecord(payload[provider]) ? payload[provider] : payload;
-  const normalized = normalizeFullCatalog({ [provider]: direct });
-  return normalized;
-}
-
-export function mergeCatalog(
-  current: PiCatalog,
-  incoming: PiCatalog
-): PiCatalog {
-  const result = cloneJson(current);
-  for (const [provider, models] of Object.entries(incoming)) {
-    result[provider] = {
-      ...(result[provider] ?? {}),
-      ...cloneJson(models)
-    };
-  }
-  return result;
-}
-
 export function buildDefaultModel(id: string): JsonObject {
   return {
     id,

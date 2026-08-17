@@ -5,10 +5,8 @@ import {
   buildResolvedModel,
   deepMerge,
   getConfigReference,
-  mergeCatalog,
   mergeModelIds,
   normalizeFullCatalog,
-  normalizeProviderCatalog,
   parseConfigReference,
   parseModelIds,
   stripSourceTransportFields,
@@ -151,27 +149,6 @@ describe("normalizeFullCatalog", () => {
   it("rejects an empty catalog", () => {
     assert.throws(() => normalizeFullCatalog({}));
     assert.throws(() => normalizeFullCatalog([]));
-  });
-});
-
-describe("normalizeProviderCatalog", () => {
-  it("accepts a bare provider model map", () => {
-    const catalog = normalizeProviderCatalog("openai", {
-      "gpt-5.6-sol": { id: "gpt-5.6-sol" }
-    });
-    assert.ok(catalog.openai?.["gpt-5.6-sol"]);
-  });
-});
-
-describe("mergeCatalog", () => {
-  it("merges providers without removing existing models", () => {
-    const merged = mergeCatalog(
-      { openai: { a: { id: "a" } } },
-      { openai: { b: { id: "b" } }, anthropic: { c: { id: "c" } } }
-    );
-    assert.ok(merged.openai?.a);
-    assert.ok(merged.openai?.b);
-    assert.ok(merged.anthropic?.c);
   });
 });
 

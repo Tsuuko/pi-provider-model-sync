@@ -226,23 +226,17 @@ OpenAI 互換の次のレスポンス形式を基本とする。
 
 ## 4. Pi モデル設定の取得
 
-### 4.1 プロバイダ別モデル一覧
+### 4.1 全モデル一覧
 
-`config` が `openai/gpt-5.6-sol` のように指定された場合、次のエンドポイントから取得する。
-
-```text
-GET https://pi.dev/api/models/providers/openai
-```
-
-取得結果から `gpt-5.6-sol` を選択する。
-
-Pi API のレスポンスに含まれる同一プロバイダのモデル設定は、参照対象だけに限定せず、すべて `cache/models.json` に保存する。
-
-新しい独自プロバイダの初回登録時と `/reload-provider` 実行時には、全プロバイダのモデル一覧を次のエンドポイントから再取得する。
+Pi のモデルカタログは、次のエンドポイントから全プロバイダ分を取得する。プロバイダ別エンドポイントは使用しない。
 
 ```text
 GET https://pi.dev/api/models
 ```
+
+取得した全プロバイダ・全モデルの設定は、参照対象だけに限定せず、すべて `cache/models.json` に保存する。
+
+新しい独自プロバイダの初回登録時と `/reload-provider` 実行時だけ再取得する。
 
 ### 4.2 取得済み設定のキャッシュ
 
@@ -255,9 +249,7 @@ config: openai/gpt-5.6-sol
 cache:  cache/models.json → openai → gpt-5.6-sol
 ```
 
-通常の起動では、キャッシュに対象モデルが存在する場合は Pi API から再取得しない。
-
-新しい独自プロバイダの初回登録時、または `/reload-provider` 実行時には、`https://pi.dev/api/models` を再取得する。取得結果に含まれる全プロバイダ・全モデルを `cache/models.json` に反映する。
+通常の起動では Pi API を再取得しない。キャッシュに対象モデルが存在しない場合は、`/reload-provider` を促すエラーとする。
 
 `config` が省略または空文字の場合は、通常のモデル解決で Pi API を参照しない。ただし、初回登録時または `/reload-provider` 実行時の全モデル API 取得では、参照されていないモデルも含めてキャッシュする。
 

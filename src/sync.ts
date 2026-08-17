@@ -8,10 +8,8 @@ import {
   cloneJson,
   getConfigReference,
   isRecord,
-  mergeCatalog,
   mergeModelIds,
   normalizeFullCatalog,
-  normalizeProviderCatalog,
   parseModelIds,
   validateSourceProvider,
   type JsonObject,
@@ -137,10 +135,18 @@ async function fetchFullPiCatalog(): Promise<PiCatalog> {
   return normalizeFullCatalog(payload);
 }
 
-async function fetchPiProviderCatalog(provider: string): Promise<PiCatalog> {
-  const url = `${PI_MODELS_URL}/providers/${encodeURIComponent(provider)}`;
-  const payload = await requestJson(url, {});
-  return normalizeProviderCatalog(provider, payload);
+function getCachedPiModel(
+  cache: PiCatalog,
+  sourceProvider: string,
+  sourceModelId: string
+): JsonObject {
+  const model = cache[sourceProvider]?.[sourceModelId];
+  if (!model) {
+    throw new Error(
+      `Pi model ${sourceProvider}/${sourceModelId} is not cached. Run /reload-provider to refresh.`
+    );
+  }
+  return model;
 }
 
 async function refreshFullPiCatalog(
@@ -159,33 +165,6 @@ async function refreshFullPiCatalog(
     );
     return current;
   }
-}
-
-async function ensurePiModel(
-  cache: PiCatalog,
-  sourceProvider: string,
-  sourceModelId: string,
-  paths: ConfigPaths,
-  fetchIfMissing: boolean
-): Promise<PiCatalog> {
-  if (cache[sourceProvider]?.[sourceModelId]) return cache;
-
-  if (!fetchIfMissing) {
-    throw new Error(
-      `Pi model ${sourceProvider}/${sourceModelId} is not cached. Run /reload-provider to refresh.`
-    );
-  }
-
-  const incoming = await fetchPiProviderCatalog(sourceProvider);
-  const merged = mergeCatalog(cache, incoming);
-  await writeJsonAtomic(paths.cache, merged);
-
-  if (!merged[sourceProvider]?.[sourceModelId]) {
-    throw new Error(
-      `Pi model ${sourceProvider}/${sourceModelId} was not found.`
-    );
-  }
-  return merged;
 }
 
 function sourceProviderConfig(
@@ -214,12 +193,9 @@ async function resolveAndRegisterProvider(
   providerName: string,
   native: NativeProviderConfig,
   source: SourceProvider,
-  cache: PiCatalog,
-  paths: ConfigPaths,
-  fetchIfMissing: boolean
-): Promise<PiCatalog> {
+  cache: PiCatalog
+): Promise<void> {
   validateSourceProvider(providerName, source);
-  let nextCache = cache;
   const models: JsonObject[] = [];
 
   for (const sourceModel of source.models) {
@@ -230,17 +206,7 @@ async function resolveAndRegisterProvider(
       const separator = reference.indexOf("/");
       const sourceProvider = reference.slice(0, separator);
       const sourceModelId = reference.slice(separator + 1);
-      nextCache = await ensurePiModel(
-        nextCache,
-        sourceProvider,
-        sourceModelId,
-        paths,
-        fetchIfMissing
-      );
-      catalogModel = nextCache[sourceProvider]?.[sourceModelId];
-      if (!catalogModel) {
-        throw new Error(`Pi model ${reference} was not found.`);
-      }
+      catalogModel = getCachedPiModel(cache, sourceProvider, sourceModelId);
     }
 
     models.push(
@@ -255,7 +221,6 @@ async function resolveAndRegisterProvider(
 
   const providerConfig = sourceProviderConfig(providerName, native, models);
   pi.registerProvider(providerName, providerConfig);
-  return nextCache;
 }
 
 function isDynamicProvider(provider: NativeProviderConfig): boolean {
@@ -339,14 +304,12 @@ export async function synchronizeAllProviders(
     if (!source) continue;
 
     try {
-      cache = await resolveAndRegisterProvider(
+      await resolveAndRegisterProvider(
         pi,
         providerName,
         nativeProvider,
         source,
-        cache,
-        paths,
-        false
+        cache
       );
     } catch (error) {
       ctx.ui.notify(
@@ -386,8 +349,6 @@ export async function reloadProvider(
     name,
     nativeProvider,
     sources.providers[name],
-    cache,
-    paths,
-    true
+    cache
   );
 }
