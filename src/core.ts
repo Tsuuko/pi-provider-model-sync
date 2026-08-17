@@ -39,22 +39,22 @@ export function isRecord(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function cloneJson<T>(value: T): T {
-  return structuredClone(value);
+export function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function deepMerge(
   base: JsonObject,
   override: JsonObject
 ): JsonObject {
-  const result = cloneJson(base);
+  const result = structuredClone(base);
 
   for (const [key, value] of Object.entries(override)) {
     const current = result[key];
     if (isRecord(current) && isRecord(value)) {
       result[key] = deepMerge(current, value);
     } else {
-      result[key] = cloneJson(value);
+      result[key] = structuredClone(value);
     }
   }
 
@@ -64,9 +64,13 @@ export function deepMerge(
 export function parseConfigReference(value: string): {
   provider: string;
   modelId: string;
-} | undefined {
+} {
   const reference = value.trim();
-  if (reference.length === 0) return undefined;
+  if (reference.length === 0) {
+    throw new Error(
+      `Invalid config reference "${value}". Expected provider/model.`
+    );
+  }
 
   const separator = reference.indexOf("/");
   if (separator <= 0 || separator === reference.length - 1) {
@@ -92,9 +96,7 @@ export function getModelConfigState(model: SourceModel): ModelConfigState {
   }
   const config = model.config.trim();
   if (config.length === 0) return { kind: "default" };
-  const reference = parseConfigReference(config);
-  if (reference === undefined) return { kind: "default" };
-  return { kind: "reference", ...reference };
+  return { kind: "reference", ...parseConfigReference(config) };
 }
 
 export function validateProviderConfig(value: string): void {
@@ -139,7 +141,11 @@ export function validateSourceModel(model: SourceModel): void {
     );
   }
 
-  if (model.config !== undefined && model.config !== null) {
+  if (
+    model.config !== undefined &&
+    model.config !== null &&
+    model.config.trim().length > 0
+  ) {
     parseConfigReference(model.config);
   }
 }
@@ -176,7 +182,7 @@ export function mergeModelIds(
   existing: SourceModel[],
   ids: readonly string[]
 ): SourceModel[] {
-  const result = existing.map(cloneJson);
+  const result = existing.map((model) => structuredClone(model));
   const known = new Set<string>();
 
   for (const model of result) {
@@ -223,15 +229,6 @@ export function parseModelIds(payload: unknown): string[] {
   return ids;
 }
 
-function stripBaseUrl(model: JsonObject): PiModel {
-  const result = cloneJson(model);
-  delete result.baseUrl;
-  return {
-    ...result,
-    id: typeof result.id === "string" ? result.id : ""
-  };
-}
-
 export function normalizeFullCatalog(payload: unknown): PiCatalog {
   if (!isRecord(payload)) {
     throw new Error("The Pi models response must be an object.");
@@ -244,9 +241,12 @@ export function normalizeFullCatalog(payload: unknown): PiCatalog {
     const normalized: Record<string, PiModel> = {};
     for (const [modelId, model] of Object.entries(models)) {
       if (!isRecord(model)) continue;
-      const normalizedModel = stripBaseUrl({ ...model, id: model.id ?? modelId });
-      if (normalizedModel.id.length === 0) continue;
-      normalized[modelId] = normalizedModel;
+      const id =
+        typeof model.id === "string" && model.id.length > 0 ? model.id : modelId;
+      if (id.length === 0) continue;
+      const result = structuredClone(model);
+      delete result.baseUrl;
+      normalized[modelId] = { ...result, id };
     }
     if (Object.keys(normalized).length > 0) {
       catalog[provider] = normalized;
@@ -265,14 +265,14 @@ export function buildDefaultModel(id: string): JsonObject {
     name: id,
     reasoning: DEFAULT_MODEL_VALUES.reasoning,
     input: [...DEFAULT_MODEL_VALUES.input],
-    cost: cloneJson(DEFAULT_MODEL_VALUES.cost),
+    cost: structuredClone(DEFAULT_MODEL_VALUES.cost),
     contextWindow: DEFAULT_MODEL_VALUES.contextWindow,
     maxTokens: DEFAULT_MODEL_VALUES.maxTokens
   };
 }
 
 export function stripSourceTransportFields(model: JsonObject): JsonObject {
-  const result = cloneJson(model);
+  const result = structuredClone(model);
   delete result.id;
   delete result.api;
   delete result.baseUrl;

@@ -5,7 +5,7 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
   buildResolvedModel,
-  cloneJson,
+  errorMessage,
   isRecord,
   mergeModelIds,
   normalizeFullCatalog,
@@ -32,10 +32,6 @@ const PI_MODELS_URL = "https://pi.dev/api/models";
 const EXTENSION_LABEL = "pi-provider-model-sync";
 
 type RegisterTarget = Pick<ExtensionAPI, "registerProvider">;
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 function appendPath(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
@@ -99,10 +95,9 @@ async function requestHeaders(
 
 function getBaseUrl(
   providerName: string,
-  nativeProvider: NativeProviderConfig,
-  ctx: ExtensionContext
+  nativeProvider: NativeProviderConfig
 ): string {
-  const baseUrl = nativeProvider.baseUrl ?? ctx.modelRegistry.getProvider(providerName)?.baseUrl;
+  const baseUrl = nativeProvider.baseUrl;
   if (!baseUrl || baseUrl.trim().length === 0) {
     throw new Error(`Provider ${providerName}: baseUrl is required.`);
   }
@@ -124,7 +119,7 @@ async function fetchCustomModelIds(
   nativeProvider: NativeProviderConfig,
   ctx: ExtensionContext
 ): Promise<string[]> {
-  const baseUrl = getBaseUrl(providerName, nativeProvider, ctx);
+  const baseUrl = getBaseUrl(providerName, nativeProvider);
   const headers = await requestHeaders(providerName, nativeProvider, ctx);
   const payload = await requestJson(appendPath(baseUrl, "models"), headers);
   return parseModelIds(payload);
@@ -241,7 +236,7 @@ function updateSourceProvider(
 ): SourceProvider {
   if (!existing) return makeSourceProvider(ids);
   return {
-    ...cloneJson(existing),
+    ...structuredClone(existing),
     models: mergeModelIds(existing.models, ids)
   };
 }

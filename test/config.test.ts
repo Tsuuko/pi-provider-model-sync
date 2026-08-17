@@ -11,18 +11,20 @@ import {
 } from "../src/config.ts";
 
 describe("getConfigPaths", () => {
-  it("resolves paths under the agent dir", () => {
+  it("resolves sources and cache under the agent dir", () => {
     const agentDir = "C:/Users/test/.pi/agent";
     process.env.PI_CODING_AGENT_DIR = agentDir;
     try {
       const paths = getConfigPaths();
       const normalize = (p: string) => p.replace(/\\/g, "/");
       assert.equal(
-        normalize(paths.root),
-        normalize(join(agentDir, "extensions", "pi-provider-model-sync"))
+        normalize(paths.sources),
+        normalize(join(agentDir, "extensions", "pi-provider-model-sync", "model-sources.json"))
       );
-      assert.equal(paths.sources, join(paths.root, "model-sources.json"));
-      assert.equal(paths.cache, join(paths.root, "cache", "models.json"));
+      assert.equal(
+        normalize(paths.cache),
+        normalize(join(agentDir, "extensions", "pi-provider-model-sync", "cache", "models.json"))
+      );
     } finally {
       delete process.env.PI_CODING_AGENT_DIR;
     }

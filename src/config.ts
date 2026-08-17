@@ -7,7 +7,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
-  cloneJson,
+  errorMessage,
   isRecord,
   type ModelSourcesFile,
   type PiCatalog,
@@ -28,7 +28,6 @@ export interface NativeModelsFile {
 }
 
 export interface ConfigPaths {
-  root: string;
   sources: string;
   cache: string;
 }
@@ -40,7 +39,6 @@ export function getConfigPaths(): ConfigPaths {
     "pi-provider-model-sync"
   );
   return {
-    root,
     sources: join(root, "model-sources.json"),
     cache: join(root, "cache", "models.json")
   };
@@ -152,11 +150,13 @@ export async function loadModelSources(path: string): Promise<ModelSourcesFile> 
       throw new Error(`Provider ${name}: models must be an array.`);
     }
     providers[name] = {
-      models: cloneJson(value.models) as SourceProvider["models"],
+      models: structuredClone(value.models) as SourceProvider["models"],
       ...(typeof value.config === "string" && value.config.trim().length > 0
         ? { config: value.config }
         : {}),
-      ...(isRecord(value.override) ? { override: cloneJson(value.override) } : {})
+      ...(isRecord(value.override)
+        ? { override: structuredClone(value.override) }
+        : {})
     };
   }
   return { providers };
@@ -173,7 +173,7 @@ export async function loadPiCache(path: string): Promise<PiCatalog> {
     cache[provider] = {};
     for (const [modelId, model] of Object.entries(models)) {
       if (isRecord(model)) {
-        cache[provider][modelId] = cloneJson(model) as PiCatalog[string][string];
+        cache[provider][modelId] = structuredClone(model) as PiCatalog[string][string];
       }
     }
   }
@@ -182,8 +182,4 @@ export async function loadPiCache(path: string): Promise<PiCatalog> {
 
 function isNodeError(error: unknown, code: string): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error && error.code === code;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
