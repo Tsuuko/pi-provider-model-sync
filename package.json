@@ -1,0 +1,32 @@
+{
+  "name": "pi-provider-model-sync",
+  "version": "0.1.0",
+  "description": "Sync custom Pi provider models with the Pi model catalog.",
+  "type": "module",
+  "keywords": ["pi-package", "pi", "models", "providers"],
+  "license": "MIT",
+  "files": [
+    "src",
+    "SPEC.md",
+    "README.md",
+    "tsconfig.json",
+    "oxlint.config.ts"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.2",
+    "oxlint": "1.78.0",
+    "typescript": "7.1.0-dev.20260817.1"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint --type-aware src",
+    "test": "node --test"
+  },
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "packageManager": "pnpm@11.21.0"
+}
