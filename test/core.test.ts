@@ -126,8 +126,8 @@ describe("mergeModelIds", () => {
     const merged = mergeModelIds(existing, ["a", "b", "c"]);
     assert.deepEqual(merged, [
       { id: "a", config: "openai/gpt-5.6-sol", override: { maxTokens: 1 } },
-      { id: "b", config: "" },
-      { id: "c", config: "" }
+      { id: "b" },
+      { id: "c" }
     ]);
   });
 

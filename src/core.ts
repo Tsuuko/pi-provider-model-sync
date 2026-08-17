@@ -178,7 +178,7 @@ export function mergeModelIds(
       throw new Error("Model id from /models must not be empty.");
     }
     if (known.has(id)) continue;
-    result.push({ id, config: "" });
+    result.push({ id });
     known.add(id);
   }
 

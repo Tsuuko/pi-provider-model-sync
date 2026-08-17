@@ -222,8 +222,7 @@ OpenAI 互換の次のレスポンス形式を基本とする。
 
 ```json
 {
-  "id": "gpt-5.6-sol",
-  "config": ""
+  "id": "gpt-5.6-sol"
 }
 ```
 
@@ -369,7 +368,7 @@ providers.<providerName>.models[].override
 3. `model-sources.json` に対象独自プロバイダが存在しない場合、独自プロバイダの `/models` を取得する。
 4. `/models` の `data` が空の場合はエラーにして、`model-sources.json` を変更せず終了する。
 5. 初回登録の場合、Pi の全モデル API (`https://pi.dev/api/models`) を再取得する。
-6. 初回取得した独自プロバイダのモデル一覧を `{ "id": "...", "config": "" }` の雛形として `model-sources.json` に保存する。
+6. 初回取得した独自プロバイダのモデル一覧を `{ "id": "..." }` の雛形として `model-sources.json` に保存する。
 7. Pi API の取得結果を `baseUrl` を除外して `cache/models.json` に保存する。
 8. `model-sources.json` に存在する各モデル定義を読み込む。
 9. `config` が空でないモデルについて、`cache/models.json` の取得元プロバイダとモデル ID を確認する。
@@ -399,8 +398,7 @@ providers.<providerName>.models[].override
 
 ```json
 {
-  "id": "new-model",
-  "config": ""
+  "id": "new-model"
 }
 ```
 
@@ -445,12 +443,10 @@ Pi の全モデル API は `/reload-provider` の実行時に再取得するた�
     "test-provider1": {
       "models": [
         {
-          "id": "gpt-5.6-sol",
-          "config": ""
+          "id": "gpt-5.6-sol"
         },
         {
-          "id": "gpt-5.6-terra",
-          "config": ""
+          "id": "gpt-5.6-terra"
         }
       ]
     }
