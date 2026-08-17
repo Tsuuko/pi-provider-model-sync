@@ -8,7 +8,7 @@ export interface SourceModel {
 
 export interface SourceProvider {
   models: SourceModel[];
-  config?: string;
+  config?: string | null;
   override?: JsonObject;
 }
 
@@ -81,10 +81,20 @@ export function parseConfigReference(value: string): {
   };
 }
 
-export function getConfigReference(model: SourceModel): string | undefined {
-  if (model.config === undefined || model.config === null) return undefined;
+export type ModelConfigState =
+  | { kind: "unset" }
+  | { kind: "default" }
+  | { kind: "reference"; provider: string; modelId: string };
+
+export function getModelConfigState(model: SourceModel): ModelConfigState {
+  if (model.config === undefined || model.config === null) {
+    return { kind: "unset" };
+  }
   const config = model.config.trim();
-  return config.length === 0 ? undefined : config;
+  if (config.length === 0) return { kind: "default" };
+  const reference = parseConfigReference(config);
+  if (reference === undefined) return { kind: "default" };
+  return { kind: "reference", ...reference };
 }
 
 export function validateProviderConfig(value: string): void {
@@ -101,13 +111,17 @@ export function validateProviderConfig(value: string): void {
 
 export function resolveSourceReference(
   model: SourceModel,
-  providerConfig: string | undefined
+  providerConfig: string | null | undefined
 ): { provider: string; modelId: string } | undefined {
-  const modelRef = getConfigReference(model);
-  if (modelRef !== undefined) {
-    return parseConfigReference(modelRef);
+  const state = getModelConfigState(model);
+  if (state.kind === "reference") {
+    return { provider: state.provider, modelId: state.modelId };
   }
-  if (providerConfig !== undefined) {
+  if (
+    state.kind === "unset" &&
+    providerConfig !== undefined &&
+    providerConfig !== null
+  ) {
     validateProviderConfig(providerConfig);
     return { provider: providerConfig, modelId: model.id };
   }
@@ -153,7 +167,7 @@ export function validateSourceProvider(
     );
   }
 
-  if (provider.config !== undefined) {
+  if (provider.config !== undefined && provider.config !== null) {
     validateProviderConfig(provider.config);
   }
 }

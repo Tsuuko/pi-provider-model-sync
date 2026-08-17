@@ -48,12 +48,12 @@
 ```
 
 - `id`: 独自プロバイダの `/models` に返る ID（必須）
-- `config`: `provider/model` で Pi カタログのモデル設定を参照。省略・`null`・空文字は Pi デフォルト（任意）
+- `config`: `provider/model` で Pi カタログのモデル設定を参照。省略・`null`・`undefined` は未指定（プロバイダ config を継承）、空文字は Pi デフォルト（任意）
 - `override`: 取得元設定の上書き（プロバイダ単位 / モデル単位、前者が弱く後者が強い）
 
-プロバイダ単位でも `config` を指定できます。モデルの `config` が無い・`null`・空の場合、そのプロバイダのモデルは `config/モデルID` を参照します（モデルの `config` が優先）。
+プロバイダ単位でも `config` を指定できます。モデルの `config` が未指定の場合、そのプロバイダのモデルは `config/モデルID` を参照します（モデルの `config` が優先。空文字のモデル config はプロバイダ config を無視して Pi デフォルト）。
 
-初回登録・`/reload-provider` の新規モデルは `{ "id": "...", "config": null }` で追加されます。
+初回登録・`/reload-provider` の新規モデルは、プロバイダとモデルの両方に `config: null` を記録します。
 
 ## コマンド
 

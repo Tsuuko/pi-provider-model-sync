@@ -107,23 +107,22 @@ Pi 標準の `models.json` を使用する。
 ```
 
 - プロバイダの `config` には、`/` を含まない Pi プロバイダ名を指定する。
-- モデルの `config` が空または省略の場合、プロバイダの `config` を取得元として `config/モデルID` を参照する。
+- モデルの `config` が未指定（省略・`null`・`undefined`）の場合、プロバイダの `config` を取得元として `config/モデルID` を参照する。
   - 例: `config: "openai-codex"`、`id: "gpt-5.4"` → `openai-codex/gpt-5.4`
+- モデルの `config` が空文字 `""` の場合は、プロバイダの `config` を無視して Pi のデフォルト値を使用する。
 - モデルの `config` が指定されている場合は、プロバイダの `config` より優先される。
-- どちらも指定されていない場合は、Pi のデフォルト値を使用する。
 
 `id` は独自プロバイダの `/models` レスポンスに含まれる ID と完全一致させる。通常起動では `/models` を再取得せず、既存の `model-sources.json` を信頼する。初回登録時と `/reload-provider` 実行時に取得した新規 ID は、その時点の `/models` レスポンスから登録する。
 
 `config` は次のいずれも許可する。
 
-- フィールド自体を省略する
-- `null` を指定する
-- 空文字 `""` を指定する
-- `provider/model` 形式を指定する
+- フィールド自体を省略する / `null` / `undefined` → **未指定**
+- 空文字 `""` → **Pi デフォルト（プロバイダ config を無視）**
+- `provider/model` 形式 → **その取得元を参照**
 
-`config` が省略・`null`・空文字の場合、Pi のデフォルト値を使用する。これは、Pi の `models.json` にモデル ID だけを指定した場合と同じ扱いにする。
+モデルの `config` が未指定の場合、プロバイダ単位の `config` を継承する（`config/モデルID` を参照）。プロバイダ config も未指定なら Pi のデフォルト値を使用する。これは、Pi の `models.json` にモデル ID だけを指定した場合と同じ扱いにする。
 
-雛形では `config: null` を使用する。
+雛形のプロバイダとモデルには `config: null` を記録する。
 
 `config` が指定されている場合は、取得元モデルの能力情報を利用する。ただし、取得元モデルの ID と独自プロバイダの `id` は一致している必要はない。
 
@@ -446,6 +445,7 @@ Pi の全モデル API は `/reload-provider` の実行時に再取得するた�
 {
   "providers": {
     "test-provider1": {
+      "config": null,
       "models": [
         {
           "id": "gpt-5.6-sol",

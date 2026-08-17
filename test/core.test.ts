@@ -4,7 +4,7 @@ import {
   buildDefaultModel,
   buildResolvedModel,
   deepMerge,
-  getConfigReference,
+  getModelConfigState,
   mergeModelIds,
   normalizeFullCatalog,
   parseConfigReference,
@@ -29,18 +29,14 @@ describe("parseConfigReference", () => {
   });
 });
 
-describe("getConfigReference", () => {
-  it("treats missing, empty, and null config as undefined", () => {
-    assert.equal(getConfigReference({ id: "a" }), undefined);
-    assert.equal(getConfigReference({ id: "a", config: "" }), undefined);
-    assert.equal(getConfigReference({ id: "a", config: null }), undefined);
-    assert.equal(getConfigReference({ id: "a", config: "  " }), undefined);
-  });
-
-  it("returns a valid reference", () => {
-    assert.equal(
-      getConfigReference({ id: "a", config: "openai/gpt-5.6-sol" }),
-      "openai/gpt-5.6-sol"
+describe("getModelConfigState", () => {
+  it("classifies missing, null, empty, and reference config", () => {
+    assert.deepEqual(getModelConfigState({ id: "a" }), { kind: "unset" });
+    assert.deepEqual(getModelConfigState({ id: "a", config: null }), { kind: "unset" });
+    assert.deepEqual(getModelConfigState({ id: "a", config: "" }), { kind: "default" });
+    assert.deepEqual(
+      getModelConfigState({ id: "a", config: "openai/gpt-5.6-sol" }),
+      { kind: "reference", provider: "openai", modelId: "gpt-5.6-sol" }
     );
   });
 });
@@ -56,14 +52,21 @@ describe("resolveSourceReference", () => {
     );
   });
 
-  it("uses the provider config with the model id when model config is empty", () => {
-    assert.deepEqual(
-      resolveSourceReference({ id: "gpt-5.4", config: "" }, "openai-codex"),
-      { provider: "openai-codex", modelId: "gpt-5.4" }
-    );
+  it("uses the provider config with the model id when model config is unset", () => {
     assert.deepEqual(
       resolveSourceReference({ id: "gpt-5.4" }, "openai-codex"),
       { provider: "openai-codex", modelId: "gpt-5.4" }
+    );
+    assert.deepEqual(
+      resolveSourceReference({ id: "gpt-5.4", config: null }, "openai-codex"),
+      { provider: "openai-codex", modelId: "gpt-5.4" }
+    );
+  });
+
+  it("returns undefined for empty model config even with a provider config", () => {
+    assert.equal(
+      resolveSourceReference({ id: "gpt-5.4", config: "" }, "openai-codex"),
+      undefined
     );
   });
 
@@ -71,9 +74,16 @@ describe("resolveSourceReference", () => {
     assert.equal(resolveSourceReference({ id: "a" }, undefined), undefined);
   });
 
-  it("rejects an invalid provider config", () => {
+  it("ignores an invalid provider config when the model config is empty", () => {
+    assert.equal(
+      resolveSourceReference({ id: "a", config: "" }, "openai/gpt-5"),
+      undefined
+    );
+  });
+
+  it("rejects an invalid provider config when the model config is unset", () => {
     assert.throws(() =>
-      resolveSourceReference({ id: "a", config: "" }, "openai/gpt-5")
+      resolveSourceReference({ id: "a" }, "openai/gpt-5")
     );
   });
 });

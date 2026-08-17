@@ -230,6 +230,7 @@ function isDynamicProvider(provider: NativeProviderConfig): boolean {
 
 function makeSourceProvider(ids: readonly string[]): SourceProvider {
   return {
+    config: null,
     models: ids.map((id) => ({ id, config: null }))
   };
 }
