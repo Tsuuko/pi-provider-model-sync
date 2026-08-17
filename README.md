@@ -20,7 +20,7 @@
 {
   "providers": {
     "test-provider1": {
-      "baseUrl": "https://cf.llmhost.net/v1",
+      "baseUrl": "https://example.com/v1",
       "api": "openai-completions",
       "authHeader": true,
       "headers": { "content-type": "application/json" },
