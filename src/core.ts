@@ -8,6 +8,7 @@ export interface SourceModel {
 
 export interface SourceProvider {
   models: SourceModel[];
+  config?: string;
   override?: JsonObject;
 }
 
@@ -86,6 +87,33 @@ export function getConfigReference(model: SourceModel): string | undefined {
   return config.length === 0 ? undefined : config;
 }
 
+export function validateProviderConfig(value: string): void {
+  const name = value.trim();
+  if (name.length === 0) {
+    throw new Error("Provider config must not be empty.");
+  }
+  if (name.includes("/")) {
+    throw new Error(
+      `Provider config must be a provider name, got "${value}".`
+    );
+  }
+}
+
+export function resolveSourceReference(
+  model: SourceModel,
+  providerConfig: string | undefined
+): { provider: string; modelId: string } | undefined {
+  const modelRef = getConfigReference(model);
+  if (modelRef !== undefined) {
+    return parseConfigReference(modelRef);
+  }
+  if (providerConfig !== undefined) {
+    validateProviderConfig(providerConfig);
+    return { provider: providerConfig, modelId: model.id };
+  }
+  return undefined;
+}
+
 export function validateSourceModel(model: SourceModel): void {
   if (model.id.trim().length === 0) {
     throw new Error("Model id must not be empty.");
@@ -123,6 +151,10 @@ export function validateSourceProvider(
     throw new Error(
       `Provider ${providerName}: override cannot contain id or config.`
     );
+  }
+
+  if (provider.config !== undefined) {
+    validateProviderConfig(provider.config);
   }
 }
 

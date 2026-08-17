@@ -6,11 +6,11 @@ import type {
 import {
   buildResolvedModel,
   cloneJson,
-  getConfigReference,
   isRecord,
   mergeModelIds,
   normalizeFullCatalog,
   parseModelIds,
+  resolveSourceReference,
   validateSourceProvider,
   type JsonObject,
   type ModelSourcesFile,
@@ -199,14 +199,15 @@ async function resolveAndRegisterProvider(
   const models: JsonObject[] = [];
 
   for (const sourceModel of source.models) {
-    const reference = getConfigReference(sourceModel);
+    const reference = resolveSourceReference(sourceModel, source.config);
     let catalogModel: JsonObject | undefined;
 
     if (reference) {
-      const separator = reference.indexOf("/");
-      const sourceProvider = reference.slice(0, separator);
-      const sourceModelId = reference.slice(separator + 1);
-      catalogModel = getCachedPiModel(cache, sourceProvider, sourceModelId);
+      catalogModel = getCachedPiModel(
+        cache,
+        reference.provider,
+        reference.modelId
+      );
     }
 
     models.push(

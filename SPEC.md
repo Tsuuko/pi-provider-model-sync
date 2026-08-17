@@ -89,6 +89,29 @@ Pi 標準の `models.json` を使用する。
 | `config` | 任意 | Pi の取得元モデル。`provider/model` 形式 |
 | `override` | 任意 | 対象モデルだけに適用する上書き |
 
+#### プロバイダ単位の config
+
+プロバイダには、そのプロバイダ内の全モデルの既定の取得元を `config` で指定できる。
+
+```json
+{
+  "providers": {
+    "hezubus": {
+      "config": "openai-codex",
+      "models": [
+        { "id": "gpt-5.4", "config": "" }
+      ]
+    }
+  }
+}
+```
+
+- プロバイダの `config` には、`/` を含まない Pi プロバイダ名を指定する。
+- モデルの `config` が空または省略の場合、プロバイダの `config` を取得元として `config/モデルID` を参照する。
+  - 例: `config: "openai-codex"`、`id: "gpt-5.4"` → `openai-codex/gpt-5.4`
+- モデルの `config` が指定されている場合は、プロバイダの `config` より優先される。
+- どちらも指定されていない場合は、Pi のデフォルト値を使用する。
+
 `id` は独自プロバイダの `/models` レスポンスに含まれる ID と完全一致させる。通常起動では `/models` を再取得せず、既存の `model-sources.json` を信頼する。初回登録時と `/reload-provider` 実行時に取得した新規 ID は、その時点の `/models` レスポンスから登録する。
 
 `config` は次のいずれも許可する。

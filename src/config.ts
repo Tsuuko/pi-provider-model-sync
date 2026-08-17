@@ -153,6 +153,9 @@ export async function loadModelSources(path: string): Promise<ModelSourcesFile> 
     }
     providers[name] = {
       models: cloneJson(value.models) as SourceProvider["models"],
+      ...(typeof value.config === "string" && value.config.trim().length > 0
+        ? { config: value.config }
+        : {}),
       ...(isRecord(value.override) ? { override: cloneJson(value.override) } : {})
     };
   }

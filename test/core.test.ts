@@ -9,6 +9,7 @@ import {
   normalizeFullCatalog,
   parseConfigReference,
   parseModelIds,
+  resolveSourceReference,
   stripSourceTransportFields,
   validateSourceProvider
 } from "../src/core.ts";
@@ -39,6 +40,39 @@ describe("getConfigReference", () => {
     assert.equal(
       getConfigReference({ id: "a", config: "openai/gpt-5.6-sol" }),
       "openai/gpt-5.6-sol"
+    );
+  });
+});
+
+describe("resolveSourceReference", () => {
+  it("prefers the model config over the provider config", () => {
+    assert.deepEqual(
+      resolveSourceReference(
+        { id: "terra", config: "anthropic/claude-sonnet-4-6" },
+        "openai"
+      ),
+      { provider: "anthropic", modelId: "claude-sonnet-4-6" }
+    );
+  });
+
+  it("uses the provider config with the model id when model config is empty", () => {
+    assert.deepEqual(
+      resolveSourceReference({ id: "gpt-5.4", config: "" }, "openai-codex"),
+      { provider: "openai-codex", modelId: "gpt-5.4" }
+    );
+    assert.deepEqual(
+      resolveSourceReference({ id: "gpt-5.4" }, "openai-codex"),
+      { provider: "openai-codex", modelId: "gpt-5.4" }
+    );
+  });
+
+  it("returns undefined when neither config is set", () => {
+    assert.equal(resolveSourceReference({ id: "a" }, undefined), undefined);
+  });
+
+  it("rejects an invalid provider config", () => {
+    assert.throws(() =>
+      resolveSourceReference({ id: "a", config: "" }, "openai/gpt-5")
     );
   });
 });
