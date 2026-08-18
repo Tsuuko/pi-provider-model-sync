@@ -261,6 +261,25 @@ async function loadState(paths: ConfigPaths): Promise<{
   return { native, sources, cache };
 }
 
+async function registerDynamicProviders(
+  pi: RegisterTarget,
+  native: NativeModelsFile,
+  sources: ModelSourcesFile,
+  cache: PiCatalog,
+  onError?: (providerName: string, error: unknown) => void
+): Promise<void> {
+  for (const [providerName, nativeProvider] of Object.entries(native.providers)) {
+    if (!isDynamicProvider(nativeProvider)) continue;
+    const source = sources.providers[providerName];
+    if (!source) continue;
+    try {
+      await resolveAndRegisterProvider(pi, providerName, nativeProvider, source, cache);
+    } catch (error) {
+      onError?.(providerName, error);
+    }
+  }
+}
+
 export async function synchronizeAllProviders(
   pi: RegisterTarget,
   ctx: ExtensionContext
@@ -295,26 +314,18 @@ export async function synchronizeAllProviders(
     await saveSources(paths, sources);
   }
 
-  for (const [providerName, nativeProvider] of Object.entries(native.providers)) {
-    if (!isDynamicProvider(nativeProvider)) continue;
-    const source = sources.providers[providerName];
-    if (!source) continue;
+  await registerDynamicProviders(pi, native, sources, cache, (providerName, error) =>
+    ctx.ui.notify(
+      `${EXTENSION_LABEL}: ${providerName} registration failed: ${errorMessage(error)}`,
+      "error"
+    )
+  );
+}
 
-    try {
-      await resolveAndRegisterProvider(
-        pi,
-        providerName,
-        nativeProvider,
-        source,
-        cache
-      );
-    } catch (error) {
-      ctx.ui.notify(
-        `${EXTENSION_LABEL}: ${providerName} registration failed: ${errorMessage(error)}`,
-        "error"
-      );
-    }
-  }
+export async function registerCachedProviders(pi: RegisterTarget): Promise<void> {
+  const paths = getConfigPaths();
+  const { native, sources, cache } = await loadState(paths);
+  await registerDynamicProviders(pi, native, sources, cache);
 }
 
 export async function reloadProvider(

@@ -4,12 +4,13 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import {
   reloadProvider,
+  registerCachedProviders,
   synchronizeAllProviders
 } from "./sync.ts";
 
 const LABEL = "pi-provider-model-sync";
 
-export default function (pi: ExtensionAPI): void {
+export default async function (pi: ExtensionAPI): Promise<void> {
   pi.registerCommand("reload-provider", {
     description: "Refresh a custom provider's models and Pi catalog cache",
     handler: async (args, ctx) => {
@@ -35,4 +36,6 @@ export default function (pi: ExtensionAPI): void {
       );
     }
   });
+
+  await registerCachedProviders(pi);
 }
