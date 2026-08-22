@@ -18,6 +18,7 @@ import {
   type SourceProvider
 } from "./core.ts";
 import {
+  fileExists,
   getConfigPaths,
   loadModelSources,
   loadNativeModels,
@@ -288,6 +289,12 @@ export async function synchronizeAllProviders(
   let { native, sources, cache } = await loadState(paths);
   const newProviders = new Map<string, string[]>();
 
+  let refreshedCache = false;
+  if (!(await fileExists(paths.cache))) {
+    cache = await refreshFullPiCatalog(cache, paths, ctx);
+    refreshedCache = true;
+  }
+
   for (const [providerName, nativeProvider] of Object.entries(native.providers)) {
     if (!isDynamicProvider(nativeProvider) || sources.providers[providerName]) {
       continue;
@@ -307,7 +314,9 @@ export async function synchronizeAllProviders(
   }
 
   if (newProviders.size > 0) {
-    cache = await refreshFullPiCatalog(cache, paths, ctx);
+    if (!refreshedCache) {
+      cache = await refreshFullPiCatalog(cache, paths, ctx);
+    }
     for (const [providerName, ids] of newProviders) {
       sources.providers[providerName] = makeSourceProvider(ids);
     }

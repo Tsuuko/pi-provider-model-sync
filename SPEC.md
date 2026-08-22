@@ -241,13 +241,12 @@ OpenAI 互換の次のレスポンス形式を基本とする。
 - 既存モデルの `id`
 - 既存モデルの `config`
 - 既存モデルの `override`
-- `cache/models.json` に保存された Pi モデル設定
-
+- `cache/models.json` に保存された Pi モデル設定（ファイルが存在しない場合は起動時に取得する。それ以外では更新しない）
 独自プロバイダのモデル一覧は `model-sources.json` を正とする。
 
 ユーザーが設定した `config` や `override` は、起動時の自動処理で変更しない。
 
-新しい独自プロバイダの追加時と `/reload-provider` の実行時だけ、Pi の全モデル API を再取得して `cache/models.json` を更新する。
+新しい独自プロバイダの追加時と `/reload-provider` の実行時には、Pi の全モデル API を再取得して `cache/models.json` を更新する。
 
 ## 4. Pi モデル設定の取得
 
@@ -261,8 +260,7 @@ GET https://pi.dev/api/models
 
 取得した全プロバイダ・全モデルの設定は、参照対象だけに限定せず、すべて `cache/models.json` に保存する。
 
-新しい独自プロバイダの初回登録時と `/reload-provider` 実行時だけ再取得する。
-
+新しい独自プロバイダの初回登録時と `/reload-provider` 実行時に再取得する。ただし、`cache/models.json` が存在しない場合は起動時にも取得する。
 ### 4.2 取得済み設定のキャッシュ
 
 `config` の取得元を分解し、`cache/models.json` から設定を解決する。

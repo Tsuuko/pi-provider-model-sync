@@ -80,7 +80,7 @@ pi install https://github.com/Tsuuko/pi-provider-model-sync
 ## 動作
 
 - `baseUrl` / `api` は常に `models.json` の値を使い、Pi カタログ側の接続情報は引き継ぎません。
-- Pi カタログは `pi.dev/api/models` から取得し、初回登録時と `/reload-provider` の実行時に更新します。それ以外の起動では `cache/models.json` を再利用します。
+- Pi カタログは `pi.dev/api/models` から取得し、初回登録時と `/reload-provider` の実行時に更新します。`cache/models.json` が存在しない場合は起動時に取得し、それ以外の起動では再利用します。
 - モデル登録は拡張ロード時（キャッシュあり）とセッション開始時に行われます。2回目以降の起動では `--list-models` や `/scoped-models` でも利用できます。初回起動時（キャッシュ未作成）はセッション開始時の `/models` 取得が必要なため、`--list-models` には未登録です。
 
 ## 開発

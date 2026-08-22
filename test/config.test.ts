@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, it } from "node:test";
 import {
+  fileExists,
   getConfigPaths,
   loadModelSources,
   loadPiCache,
@@ -28,6 +29,16 @@ describe("getConfigPaths", () => {
     } finally {
       delete process.env.PI_CODING_AGENT_DIR;
     }
+  });
+});
+
+describe("fileExists", () => {
+  it("returns false before creation and true after", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pi-model-sync-"));
+    const path = join(dir, "flag.json");
+    assert.equal(await fileExists(path), false);
+    await writeFile(path, "{}\n");
+    assert.equal(await fileExists(path), true);
   });
 });
 

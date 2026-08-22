@@ -1,4 +1,5 @@
 import {
+  access,
   mkdir,
   readFile,
   rename,
@@ -109,6 +110,15 @@ async function readJsonFile<T>(path: string): Promise<T | undefined> {
   } catch (error) {
     if (isNodeError(error, "ENOENT")) return undefined;
     throw new Error(`Failed to read ${path}: ${errorMessage(error)}`);
+  }
+}
+
+export async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
   }
 }
 
