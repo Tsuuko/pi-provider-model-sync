@@ -2,6 +2,8 @@
 
 独自 URL を持つ Pi プロバイダの `/models` エンドポイントからモデル一覧を取り込み、Pi のモデルカタログ設定と結び付ける Pi package です。
 
+自前の API ゲートウェイや OpenAI 互換エンドポイントにあるモデルを、Pi 標準のモデル定義(コンテキストサイズ・料金など)を引き回して使えるようにします。モデル定義を 1 つずつ手書きする必要はありません。
+
 ## インストール
 
 ```bash
@@ -16,19 +18,11 @@ pi install https://github.com/Tsuuko/pi-provider-model-sync
 
 プロジェクト単位にインストールする場合は `-l` を付けてください。
 
-## 設定
+## 使い方
 
-`.pi/agent/extensions/pi-provider-model-sync/` に設定を置きます。`~/.pi/agent/` は Pi のグローバル設定ディレクトリです（`PI_CODING_AGENT_DIR` で変更可能）。
+### 1. `models.json` にプロバイダを追加する
 
-```
-~/.pi/agent/extensions/pi-provider-model-sync/
-├── model-sources.json   # プロバイダごとのモデル一覧・config・override
-└── cache/models.json    # pi.dev から取得した Pi モデルカタログ（自動管理）
-```
-
-### `models.json`（Pi 標準）
-
-動的登録したい独自プロバイダは `models: []` で定義します。
+`~/.pi/agent/models.json`(グローバル設定ディレクトリ配下。`PI_CODING_AGENT_DIR` で変更可能)は **Pi 標準の**プロバイダ定義ファイルです。ここに接続先を追加し、`models: []`(空配列)を付けるとこのパッケージがモデル一覧を自動取り込みます。
 
 ```json
 {
@@ -37,23 +31,68 @@ pi install https://github.com/Tsuuko/pi-provider-model-sync
       "baseUrl": "https://example.com/v1",
       "api": "openai-completions",
       "authHeader": true,
-      "headers": { "content-type": "application/json" },
+      "headers": {},
       "models": []
     }
   }
 }
 ```
 
-モデル一覧の取得先だけ接続先と変えたい場合は `modelsUrl` を追加します。省略時は `<baseUrl>/models` を使用します。
+| フィールド   | 必須 | 説明                                                                     |
+| ------------ | ---- | ------------------------------------------------------------------------ |
+| `baseUrl`    | ○    | 接続先ベース URL                                                         |
+| `api`        | ○    | 使用する API 形式(後述)                                                  |
+| `modelsUrl`  | -    | モデル一覧の取得先 URL。省略時は `<baseUrl>/models`                      |
+| `authHeader` | -    | `true` で保存済みの apiKey を `Authorization: Bearer ...` ヘッダーに変換 |
+| `headers`    | -    | 追加ヘッダー(`Authorization` を直接書いても構いません)                   |
+| `models`     | -    | `[]` でこのパッケージの対象になる。省略時は対象外                        |
 
-### `model-sources.json`
+`api` には Pi が対応する次の値を使えます。
 
-初回起動時に `models: []` のプロバイダから `/models` を取得し、モデル定義の雛形を書き込んだ後は自動更新しません。
+```text
+openai-completions    openai-responses      azure-openai-responses
+openai-codex-responses  anthropic-messages  google-generative-ai
+google-vertex         mistral-conversations bedrock-converse-stream
+pi-messages
+```
+
+認証は、Pi に保存済みの apiKey に `authHeader: true` を付けるか、`headers` に直接書きます。
+
+> **モデル一覧取得のレスポンス形式**: `{ "data": [{ "id": "...", ... }] }` という **OpenAI 互換形式**である必要があります。catalog 形式など別形式を返すエンドポイントしかない場合は、OpenAI 互換の `/models` を持つホストを `baseUrl` / `modelsUrl` に指定してください。
+>
+> 例: Z.ai など catalog 形式と OpenAI 互換 API を別 URL で提供しているプロバイダ
 
 ```json
 {
   "providers": {
     "test-provider1": {
+      "baseUrl": "https://example.com/v1",
+      "modelsUrl": "https://openai-compat.example.com/v1/models",
+      "api": "openai-completions",
+      "models": []
+    }
+  }
+}
+```
+
+### 2. Pi を起動して初回取り込み
+
+起動時(セッション開始時)に `models: []` のプロバイダへ `/models` を取り込み、次の `model-sources.json` に雛形を自動生成します。接続情報はすべて `models.json` の値が使われ、Pi カタログ側のものは引き継ぎません。
+
+### 3. `model-sources.json` で参照先や上書きを調整する
+
+`~/.pi/agent/extensions/pi-provider-model-sync/model-sources.json` は、プロバイダごとのモデル一覧と設定の参照を管理するファイルです。初回取り込み後は自動更新されません。
+
+```json
+{
+  "providers": {
+    "test-provider1": {
+      "override": {
+        "contextWindow": 131072,
+        "compat": {
+          "supportsReasoningEffort": false
+        }
+      },
       "models": [
         { "id": "gpt-5.6-sol", "config": "" },
         { "id": "gpt-5.6-terra", "config": "openai/gpt-5.6-sol" }
@@ -63,13 +102,32 @@ pi install https://github.com/Tsuuko/pi-provider-model-sync
 }
 ```
 
-- `id`: 独自プロバイダの `/models` に返る ID（必須）
-- `config`: `provider/model` で Pi カタログのモデル設定を参照。省略・`null`・`undefined` は未指定（プロバイダ config を継承）、空文字は Pi デフォルト（任意）
-- `override`: 取得元設定の上書き（プロバイダ単位 / モデル単位、前者が弱く後者が強い）
+| 項目       | 必須 | 説明                                                                                              |
+| ---------- | ---- | ------------------------------------------------------------------------------------------------- |
+| `id`       | ○    | プロバイダの `/models` が返す ID                                                                  |
+| `config`   | -    | Pi カタログのどのモデル設定を使うか(下表)                                                         |
+| `override` | -    | 取得元設定の上書き。モデル単位(`models[].override`)とプロバイダ単位(全体)があり、モデル単位が優先 |
 
-プロバイダ単位でも `config` を指定できます。モデルの `config` が未指定の場合、そのプロバイダのモデルは `config/モデルID` を参照します（モデルの `config` が優先。空文字のモデル config はプロバイダ config を無視して Pi デフォルト）。
+`config` の指定と意味:
 
-初回登録・`/reload-provider` の新規モデルは、プロバイダとモデルの両方に `config: null` を記録します。
+| 書き方             | 意味                                                                         |
+| ------------------ | ---------------------------------------------------------------------------- |
+| 未指定 / `null`    | プロバイダの `config` を継承(未指定ならプロバイダ config も未指定として扱う) |
+| `""`(空文字)       | Pi デフォルト設定(`/models` 単体で完結)                                      |
+| `"provider/model"` | Pi カタログの該当モデル設定を参照(例: `openai/gpt-5.6-sol`)                  |
+| `"provider"`       | Pi カタログ内でそのプロバイダの同 ID モデルを参照                            |
+
+プロバイダ単位の `config` も指定できます。モデルの `config` が未指定の場合、プロバイダの `config` が使われます(モデルの指定が優先)。
+
+`override` では `id` / `config` 以外のモデル定義フィールド(`contextWindow`、`maxTokens`、`compat` など)を上書きできます。Pi カタログのモデルがどんなフィールドを持つかは <https://pi.dev/api/models> で確認できます。
+
+初回登録・`/reload-provider` での新規モデルは `config: null` で雛形化されます。必要に応じて `config` を書き換えてください。
+
+### 4. モデルを使う
+
+一度取り込んだモデルは、次回以降の起動で拡張ロード時に自動登録されます。`--list-models` や `/scoped-models` から選択できます。設定変更後は `/reload-provider` で反映します。
+
+> 初回起動直後(キャッシュ未作成)はモデル確定がセッション開始時に行われるため、`--list-models` には表示されません。2 回目以降の起動から表示されます。
 
 ## コマンド
 
@@ -81,9 +139,25 @@ pi install https://github.com/Tsuuko/pi-provider-model-sync
 
 ## 動作
 
-- `baseUrl` / `api` は常に `models.json` の値を使い、Pi カタログ側の接続情報は引き継ぎません。
 - Pi カタログは `pi.dev/api/models` から取得し、初回登録時と `/reload-provider` の実行時に更新します。`cache/models.json` が存在しない場合は起動時に取得し、それ以外の起動では再利用します。
-- モデル登録は拡張ロード時（キャッシュあり）とセッション開始時に行われます。2回目以降の起動では `--list-models` や `/scoped-models` でも利用できます。初回起動時（キャッシュ未作成）はセッション開始時の `/models` 取得が必要なため、`--list-models` には未登録です。
+- `baseUrl` / `api` は常に `models.json` の値を使います。
+- 通常の起動では、既存の `model-sources.json` の内容(config / override 含む)を一切変更しません。`model-sources.json` が正です。
+
+## ファイル配置
+
+```text
+~/.pi/agent/
+├── models.json                                  # 自分で編集(Pi 標準)
+└── extensions/pi-provider-model-sync/
+    ├── model-sources.json                       # 自動生成後に自分で調整
+    └── cache/models.json                        # 自動管理
+```
+
+## トラブルシューティング
+
+- **`The /models response must contain a data array.`** — 取得先の `/models` が OpenAI 互換形式ではない(`{ "data": [...] }` でない)ときに出ます。OpenAI 互換 API の URL を `baseUrl` に指定するか、`modelsUrl` で `/models` 相当の URL を指してください。
+- **`Provider xxx: baseUrl is required.` / `api is required.`** — `models.json` の該当プロバイダに `baseUrl` と `api` の両方が必要です。
+- **初回取り込みで `model-sources.json` が作られない** — 対象は `models: []` のプロバイダだけです。接続先(`/models` の HTTP エラー)にも問題がないか確認してください。失敗時は通知が出ます。
 
 ## 開発
 
@@ -93,3 +167,5 @@ pnpm typecheck  # TypeScript 型チェック
 pnpm lint       # oxlint (type-aware)
 pnpm test       # node --test
 ```
+
+詳細設計は [SPEC.md](./SPEC.md) を参照してください。

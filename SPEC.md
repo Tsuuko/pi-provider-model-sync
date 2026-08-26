@@ -8,13 +8,15 @@
 
 ## 2. 設定ファイルの場所
 
-設定ファイルは次のディレクトリに配置する。`~/.pi/agent/` は Pi のグローバル設定ディレクトリ（`PI_CODING_AGENT_DIR` で変更可能）。
+設定ファイルは次の場所に配置する。`~/.pi/agent/` は Pi のグローバル設定ディレクトリ（`PI_CODING_AGENT_DIR` で変更可能）。
 
 ```text
-~/.pi/agent/extensions/pi-provider-model-sync/
-├── model-sources.json
-└── cache/
-    └── models.json
+~/.pi/agent/
+├── models.json                       # Pi 標準。自分で編集する
+└── extensions/pi-provider-model-sync/
+    ├── model-sources.json            # 自動生成後に自分で編集（/reload-provider は新規モデルのみ追記）
+    └── cache/
+        └── models.json               # パッケージが管理する
 ```
 
 ### 2.1 `models.json`
@@ -191,7 +193,7 @@ test-provider1/gpt-5.6-terra
 GET https://cf.llmhost.net/v1/models
 ```
 
-認証やヘッダーは `models.json` のプロバイダ設定を利用する。
+ヘッダーは `models.json` のプロバイダ設定を基本とし、Pi 本体に登録された同名プロバイダのヘッダー、Pi 認証ストアのヘッダーをこの順で上書きマージする。`authHeader: true` かつ認証ストアに apiKey がある場合で `Authorization` ヘッダーが未設定のときは、`Authorization: Bearer <apiKey>` を付与する。
 
 OpenAI 互換の次のレスポンス形式を基本とする。
 
@@ -230,6 +232,7 @@ OpenAI 互換の次のレスポンス形式を基本とする。
 }
 ```
 
+`/models` の取得はプロバイダごとに独立して行い、一部が失敗しても他のプロバイダの初回登録は続行する。失敗したプロバイダはエラーを通知する。取得に成功したプロバイダが 1 つもない場合は、Pi の全モデル API の再取得を行わない。このとき `cache/models.json` が存在しなければ、起動時の通常処理として Pi API から取得する。
 初回登録後、通常の起動では独自プロバイダの `/models` と Pi の全モデル API を自動取得しない。
 
 `model-sources.json` に対象プロバイダの定義が存在することを、初回登録済みの判定に使用する。
@@ -295,6 +298,20 @@ Pi API の取得に失敗した場合は、既存の `cache/models.json` を保�
 
 `config` が省略または空文字の場合は Pi API から設定を取得せず、モデル ID だけを指定した場合と同じ Pi のデフォルト値を使用する。
 
+ここで使用するデフォルトのモデル定義はパッケージ内に組み込まれた次の値である。
+
+```json
+{
+  "reasoning": false,
+  "input": ["text"],
+  "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
+  "contextWindow": 128000,
+  "maxTokens": 16384
+}
+```
+
+デフォルト値に加え、モデルは `id`（独自プロバイダ側の ID）と `name`（ID と同値）を持つ。取得元モデルの設定を利用する場合は、このデフォルト値に取得元のフィールドを上書き合成したものをベースとし、最終的なモデル `id` は常に独自プロバイダ側の ID になる。
+
 ## 6. 上書き仕様
 
 ### 6.1 適用順
@@ -302,14 +319,14 @@ Pi API の取得に失敗した場合は、既存の `cache/models.json` を保�
 モデルの最終設定は、次の順序で作成する。
 
 ```text
-取得元モデル設定、または Pi のデフォルトモデル定義
+デフォルトのモデル定義 + 取得元モデル設定（config 解決結果。未参照ならデフォルトのみ）
   ↓
-models.json のプロバイダ設定
+providers.<providerName>.override（プロバイダ単位）
   ↓
-providers.<providerName>.override
-  ↓
-providers.<providerName>.models[].override
+providers.<providerName>.models[].override（モデル単位）
 ```
+
+`models.json` のプロバイダ設定（`baseUrl`、`api`、認証設定など）は上記マージには含まれず、プロバイダ登録時の既定の接続情報として適用される。モデル側の設定（取得元設定や `override` による `baseUrl` / `api` の明示）があればそちらが優先される。
 
 後に適用される設定が優先される。
 
@@ -364,6 +381,7 @@ providers.<providerName>.models[].override
 - `override` による明示的な値は、取得元設定の値より優先する。
 
 ## 7. 起動時の処理
+セッション開始時（`session_start`）に実行する。拡張ロード時は `/models` や Pi API を取得せず、`model-sources.json` と `cache/models.json` が存在する場合にのみ、そこからプロバイダを登録する。
 
 1. Pi が通常どおり `models.json` を読み込む。
 2. パッケージが `models: []` の独自プロバイダを検出する。
@@ -528,7 +546,7 @@ test-provider1/gpt-5.6-luna
 
 次の場合は、対象プロバイダとモデルを含む明確なエラーを表示する。
 
-- `id` がない
+- `/models` の応答に `data` 配列がない、または `id` がない・重複している
 - 独自プロバイダの `/models` が空のモデル一覧を返した
 - `config` が `provider/model` 形式でない
 - 取得元 Pi プロバイダが存在しない
@@ -536,7 +554,7 @@ test-provider1/gpt-5.6-luna
 - 独自プロバイダの `/models` 取得に失敗した
 - Pi モデル設定の取得に失敗した
 - `override` に変更不可の `id` または `config` が含まれている
-- `/reload-provider` の対象プロバイダが `models.json` に存在しない
+- `/reload-provider` の引数がない、または対象プロバイダが `models.json` に存在しない・動的登録対象でない
 
 独自プロバイダの `/models` 初回取得に失敗した場合、既存の `model-sources.json` があれば保存済みのモデル一覧を利用する。初回で `model-sources.json` もない場合は、対象プロバイダにモデルを登録せずエラーを通知する。
 
