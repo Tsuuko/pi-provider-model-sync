@@ -44,6 +44,8 @@ pi install https://github.com/Tsuuko/pi-provider-model-sync
 }
 ```
 
+モデル一覧の取得先だけ接続先と変えたい場合は `modelsUrl` を追加します。省略時は `<baseUrl>/models` を使用します。
+
 ### `model-sources.json`
 
 初回起動時に `models: []` のプロバイダから `/models` を取得し、モデル定義の雛形を書き込んだ後は自動更新しません。

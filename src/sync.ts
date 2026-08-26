@@ -120,9 +120,10 @@ async function fetchCustomModelIds(
   nativeProvider: NativeProviderConfig,
   ctx: ExtensionContext
 ): Promise<string[]> {
-  const baseUrl = getBaseUrl(providerName, nativeProvider);
+  const url = nativeProvider.modelsUrl?.trim() ||
+    appendPath(getBaseUrl(providerName, nativeProvider), "models");
   const headers = await requestHeaders(providerName, nativeProvider, ctx);
-  const payload = await requestJson(appendPath(baseUrl, "models"), headers);
+  const payload = await requestJson(url, headers);
   return parseModelIds(payload);
 }
 
@@ -180,6 +181,7 @@ function sourceProviderConfig(
     ...(native.apiKey !== undefined ? { apiKey: native.apiKey } : {}),
     ...(native.authHeader !== undefined ? { authHeader: native.authHeader } : {}),
     ...(native.headers !== undefined ? { headers: native.headers } : {}),
+    // SAFETY: models は buildResolvedModel / Pi カタログ正規化済みのモデル JSON で、ProviderConfig のモデル形状と実行時に一致する
     models: models as unknown as NonNullable<ProviderConfig["models"]>
   };
 }

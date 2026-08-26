@@ -17,6 +17,7 @@ import {
 
 export interface NativeProviderConfig {
   baseUrl?: string;
+  modelsUrl?: string;
   api?: string;
   apiKey?: string;
   authHeader?: boolean;

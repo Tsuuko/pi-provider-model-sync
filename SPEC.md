@@ -42,6 +42,7 @@ Pi 標準の `models.json` を使用する。
 #### `models.json` の扱い
 
 - `baseUrl`、`api`、`authHeader`、`headers` は独自プロバイダの接続設定として利用する。
+- `modelsUrl` を指定した場合、モデル一覧取得時はその URL を使用し、省略時は `baseUrl` に `/models` を付けた URL を使用する。
 - `models: []` は、パッケージがモデルを動的登録する対象プロバイダであることを示す。
 - `models` を省略したプロバイダは、自動モデル一覧取得の対象にしない。
 - パッケージは `models.json` 自体を書き換えない。
@@ -182,7 +183,7 @@ test-provider1/gpt-5.6-terra
 
 ### 3.1 エンドポイント
 
-`models.json` の `baseUrl` に `/models` を付けた URL を使用する。
+`models.json` の `modelsUrl` を指定した場合はその URL を、省略した場合は `baseUrl` に `/models` を付けた URL を使用する。
 
 例:
 
@@ -390,7 +391,7 @@ providers.<providerName>.models[].override
 ### 8.1 更新処理
 
 1. `models.json` から指定独自プロバイダの `baseUrl` と認証設定を取得する。
-2. `<baseUrl>/models` を取得する。
+2. `modelsUrl` を指定した場合はその URL を、省略した場合は `<baseUrl>/models` を取得する。
 3. `/models` の `data` が空の場合はエラーにし、既存の `model-sources.json` と `cache/models.json` を変更しない。
 4. Pi の全モデル API (`https://pi.dev/api/models`) を再取得する。
 5. Pi API の取得結果を `baseUrl` を除外して `cache/models.json` に保存する。
