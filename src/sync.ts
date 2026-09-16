@@ -393,7 +393,7 @@ export async function reloadProvider(
   pi: RegisterTarget,
   ctx: ExtensionContext,
   providerName: string,
-): Promise<void> {
+): Promise<{ total: number; added: number }> {
   const name = providerName.trim();
   if (name.length === 0) {
     throw new Error("Usage: /reload-provider <provider>");
@@ -406,11 +406,17 @@ export async function reloadProvider(
     throw new Error(`Dynamic provider ${name} was not found in models.json.`);
   }
 
+  // notify は同一メッセージの連続呼び出しを同じ行の上書きとして描画するため、
+  // 進捗を出してもメッセージ欄が埋まらない
+  ctx.ui.notify(`${EXTENSION_LABEL}: ${name}: fetching /models...`, "info");
   const ids = await fetchCustomModelIds(name, nativeProvider, ctx);
   let cache = await loadPiCache(paths.cache);
+  ctx.ui.notify(`${EXTENSION_LABEL}: ${name}: refreshing Pi catalog...`, "info");
   cache = await refreshFullPiCatalog(cache, paths, ctx);
 
+  const before = sources.providers[name]?.models.length ?? 0;
   sources.providers[name] = updateSourceProvider(sources.providers[name], ids);
+  const added = sources.providers[name].models.length - before;
   await saveSources(paths, sources);
 
   await resolveAndRegisterProvider(
@@ -420,4 +426,6 @@ export async function reloadProvider(
     sources.providers[name],
     cache,
   );
+
+  return { total: sources.providers[name].models.length, added };
 }

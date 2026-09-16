@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   registerCachedProviders,
+  reloadProvider,
   synchronizeAllProviders,
 } from "../src/sync.ts";
 
@@ -35,15 +36,36 @@ async function prepareAgentDir(): Promise<string> {
   return agentDir;
 }
 
-function createStubs(): { pi: never; ctx: never; registered: string[] } {
+function createStubs(): {
+  pi: never;
+  ctx: never;
+  registered: string[];
+  notifications: string[];
+} {
   const registered: string[] = [];
+  const notifications: string[] = [];
   const pi = {
     registerProvider: (name: string) => {
       registered.push(name);
     },
   };
-  const ctx = { ui: { notify: () => {} } };
-  return { pi: pi as never, ctx: ctx as never, registered };
+  const ctx = {
+    ui: {
+      notify: (message: string) => {
+        notifications.push(message);
+      },
+    },
+    modelRegistry: {
+      getProvider: () => undefined,
+      getProviderAuth: async () => null,
+    },
+  };
+  return {
+    pi: pi as never,
+    ctx: ctx as never,
+    registered,
+    notifications,
+  };
 }
 
 describe("startup registration", () => {
@@ -72,6 +94,35 @@ describe("startup registration", () => {
         "session_start must not re-register providers registered at load time",
       );
     } finally {
+      delete process.env.PI_CODING_AGENT_DIR;
+    }
+  });
+});
+
+describe("reloadProvider", () => {
+  it("reports progress while fetching and summarises the result", async () => {
+    process.env.PI_CODING_AGENT_DIR = await prepareAgentDir();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string) =>
+      String(url).includes("pi.dev")
+        ? new Response(JSON.stringify({ openai: { m1: { id: "m1" } } }))
+        : new Response(JSON.stringify({ data: [{ id: "m1" }, { id: "m2" }] }))
+    ) as typeof globalThis.fetch;
+    try {
+      const { pi, ctx, notifications } = createStubs();
+      const result = await reloadProvider(pi, ctx, "p1");
+
+      assert.deepEqual(result, { total: 2, added: 1 });
+      assert.deepEqual(
+        notifications,
+        [
+          "pi-provider-model-sync: p1: fetching /models...",
+          "pi-provider-model-sync: p1: refreshing Pi catalog...",
+        ],
+        "progress must be reported in the message area while fetching",
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
       delete process.env.PI_CODING_AGENT_DIR;
     }
   });

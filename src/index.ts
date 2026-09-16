@@ -15,8 +15,11 @@ export default async function (pi: ExtensionAPI): Promise<void> {
     description: "Refresh a custom provider's models and Pi catalog cache",
     handler: async (args, ctx) => {
       try {
-        await reloadProvider(pi, ctx, args);
-        ctx.ui.notify(`${LABEL}: provider reloaded.`, "info");
+        const { total, added } = await reloadProvider(pi, ctx, args);
+        ctx.ui.notify(
+          `${LABEL}: ${args.trim()} reloaded (${total} models${added > 0 ? `, ${added} new` : ""}).`,
+          "info",
+        );
       } catch (error) {
         ctx.ui.notify(
           `${LABEL}: ${error instanceof Error ? error.message : String(error)}`,
