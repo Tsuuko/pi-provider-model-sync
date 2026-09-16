@@ -1,7 +1,7 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
-  ProviderConfig
+  ProviderConfig,
 } from "@earendil-works/pi-coding-agent";
 import {
   buildResolvedModel,
@@ -15,7 +15,7 @@ import {
   type JsonObject,
   type ModelSourcesFile,
   type PiCatalog,
-  type SourceProvider
+  type SourceProvider,
 } from "./core.ts";
 import {
   fileExists,
@@ -26,7 +26,7 @@ import {
   writeJsonAtomic,
   type ConfigPaths,
   type NativeModelsFile,
-  type NativeProviderConfig
+  type NativeProviderConfig,
 } from "./config.ts";
 
 const PI_MODELS_URL = "https://pi.dev/api/models";
@@ -49,13 +49,15 @@ function stringHeaders(value: unknown): Record<string, string> {
 
 async function requestJson(
   url: string,
-  headers: Record<string, string>
+  headers: Record<string, string>,
 ): Promise<unknown> {
   const response = await fetch(url, {
     headers: {
       Accept: "application/json",
-      ...headers
-    }
+      ...headers,
+    },
+    // ponytail: 起動を止めないための固定上限。環境変数で調整したくなったら定数化する
+    signal: AbortSignal.timeout(10_000),
   });
   if (!response.ok) {
     throw new Error(`GET ${url} failed with HTTP ${response.status}.`);
@@ -70,12 +72,12 @@ async function requestJson(
 async function requestHeaders(
   providerName: string,
   nativeProvider: NativeProviderConfig,
-  ctx: ExtensionContext
+  ctx: ExtensionContext,
 ): Promise<Record<string, string>> {
   const provider = ctx.modelRegistry.getProvider(providerName);
   const headers = {
     ...stringHeaders(nativeProvider.headers),
-    ...stringHeaders(provider?.headers)
+    ...stringHeaders(provider?.headers),
   };
 
   const auth = await ctx.modelRegistry.getProviderAuth(providerName);
@@ -96,7 +98,7 @@ async function requestHeaders(
 
 function getBaseUrl(
   providerName: string,
-  nativeProvider: NativeProviderConfig
+  nativeProvider: NativeProviderConfig,
 ): string {
   const baseUrl = nativeProvider.baseUrl;
   if (!baseUrl || baseUrl.trim().length === 0) {
@@ -107,7 +109,7 @@ function getBaseUrl(
 
 function getApi(
   providerName: string,
-  nativeProvider: NativeProviderConfig
+  nativeProvider: NativeProviderConfig,
 ): NonNullable<ProviderConfig["api"]> {
   if (!nativeProvider.api || nativeProvider.api.trim().length === 0) {
     throw new Error(`Provider ${providerName}: api is required.`);
@@ -118,9 +120,10 @@ function getApi(
 async function fetchCustomModelIds(
   providerName: string,
   nativeProvider: NativeProviderConfig,
-  ctx: ExtensionContext
+  ctx: ExtensionContext,
 ): Promise<string[]> {
-  const url = nativeProvider.modelsUrl?.trim() ||
+  const url =
+    nativeProvider.modelsUrl?.trim() ||
     appendPath(getBaseUrl(providerName, nativeProvider), "models");
   const headers = await requestHeaders(providerName, nativeProvider, ctx);
   const payload = await requestJson(url, headers);
@@ -135,12 +138,12 @@ async function fetchFullPiCatalog(): Promise<PiCatalog> {
 function getCachedPiModel(
   cache: PiCatalog,
   sourceProvider: string,
-  sourceModelId: string
+  sourceModelId: string,
 ): JsonObject {
   const model = cache[sourceProvider]?.[sourceModelId];
   if (!model) {
     throw new Error(
-      `Pi model ${sourceProvider}/${sourceModelId} is not cached. Run /reload-provider to refresh.`
+      `Pi model ${sourceProvider}/${sourceModelId} is not cached. Run /reload-provider to refresh.`,
     );
   }
   return model;
@@ -149,7 +152,7 @@ function getCachedPiModel(
 async function refreshFullPiCatalog(
   current: PiCatalog,
   paths: ConfigPaths,
-  ctx: ExtensionContext
+  ctx: ExtensionContext,
 ): Promise<PiCatalog> {
   try {
     const catalog = await fetchFullPiCatalog();
@@ -158,7 +161,7 @@ async function refreshFullPiCatalog(
   } catch (error) {
     ctx.ui.notify(
       `${EXTENSION_LABEL}: Pi models cache refresh failed: ${errorMessage(error)}`,
-      "warning"
+      "warning",
     );
     return current;
   }
@@ -167,7 +170,7 @@ async function refreshFullPiCatalog(
 function sourceProviderConfig(
   providerName: string,
   native: NativeProviderConfig,
-  models: readonly JsonObject[]
+  models: readonly JsonObject[],
 ): ProviderConfig {
   const baseUrl = native.baseUrl;
   const api = getApi(providerName, native);
@@ -179,10 +182,12 @@ function sourceProviderConfig(
     baseUrl,
     api,
     ...(native.apiKey !== undefined ? { apiKey: native.apiKey } : {}),
-    ...(native.authHeader !== undefined ? { authHeader: native.authHeader } : {}),
+    ...(native.authHeader !== undefined
+      ? { authHeader: native.authHeader }
+      : {}),
     ...(native.headers !== undefined ? { headers: native.headers } : {}),
     // SAFETY: models は buildResolvedModel / Pi カタログ正規化済みのモデル JSON で、ProviderConfig のモデル形状と実行時に一致する
-    models: models as unknown as NonNullable<ProviderConfig["models"]>
+    models: models as unknown as NonNullable<ProviderConfig["models"]>,
   };
 }
 
@@ -191,7 +196,7 @@ async function resolveAndRegisterProvider(
   providerName: string,
   native: NativeProviderConfig,
   source: SourceProvider,
-  cache: PiCatalog
+  cache: PiCatalog,
 ): Promise<void> {
   validateSourceProvider(providerName, source);
   const models: JsonObject[] = [];
@@ -204,7 +209,7 @@ async function resolveAndRegisterProvider(
       catalogModel = getCachedPiModel(
         cache,
         reference.provider,
-        reference.modelId
+        reference.modelId,
       );
     }
 
@@ -213,8 +218,8 @@ async function resolveAndRegisterProvider(
         sourceModel.id,
         catalogModel,
         source.override,
-        sourceModel.override
-      )
+        sourceModel.override,
+      ),
     );
   }
 
@@ -229,24 +234,24 @@ function isDynamicProvider(provider: NativeProviderConfig): boolean {
 function makeSourceProvider(ids: readonly string[]): SourceProvider {
   return {
     config: null,
-    models: ids.map((id) => ({ id, config: null }))
+    models: ids.map((id) => ({ id, config: null })),
   };
 }
 
 function updateSourceProvider(
   existing: SourceProvider | undefined,
-  ids: readonly string[]
+  ids: readonly string[],
 ): SourceProvider {
   if (!existing) return makeSourceProvider(ids);
   return {
     ...structuredClone(existing),
-    models: mergeModelIds(existing.models, ids)
+    models: mergeModelIds(existing.models, ids),
   };
 }
 
 async function saveSources(
   paths: ConfigPaths,
-  sources: ModelSourcesFile
+  sources: ModelSourcesFile,
 ): Promise<void> {
   await writeJsonAtomic(paths.sources, sources);
 }
@@ -259,7 +264,7 @@ async function loadState(paths: ConfigPaths): Promise<{
   const [native, sources, cache] = await Promise.all([
     loadNativeModels(),
     loadModelSources(paths.sources),
-    loadPiCache(paths.cache)
+    loadPiCache(paths.cache),
   ]);
   return { native, sources, cache };
 }
@@ -269,14 +274,22 @@ async function registerDynamicProviders(
   native: NativeModelsFile,
   sources: ModelSourcesFile,
   cache: PiCatalog,
-  onError?: (providerName: string, error: unknown) => void
+  onError?: (providerName: string, error: unknown) => void,
 ): Promise<void> {
-  for (const [providerName, nativeProvider] of Object.entries(native.providers)) {
+  for (const [providerName, nativeProvider] of Object.entries(
+    native.providers,
+  )) {
     if (!isDynamicProvider(nativeProvider)) continue;
     const source = sources.providers[providerName];
     if (!source) continue;
     try {
-      await resolveAndRegisterProvider(pi, providerName, nativeProvider, source, cache);
+      await resolveAndRegisterProvider(
+        pi,
+        providerName,
+        nativeProvider,
+        source,
+        cache,
+      );
     } catch (error) {
       onError?.(providerName, error);
     }
@@ -285,34 +298,56 @@ async function registerDynamicProviders(
 
 export async function synchronizeAllProviders(
   pi: RegisterTarget,
-  ctx: ExtensionContext
+  ctx: ExtensionContext,
 ): Promise<void> {
   const paths = getConfigPaths();
-  let { native, sources, cache } = await loadState(paths);
+  const [native, sources] = await Promise.all([
+    loadNativeModels(),
+    loadModelSources(paths.sources),
+  ]);
   const newProviders = new Map<string, string[]>();
 
+  // 初回登録対象は並列に取得する。直列だと 1 プロバイダの待ち時間が
+  // プロバイダ数だけ積み上がり、起動がその分だけ遅くなる
+  const pending = Object.entries(native.providers).filter(
+    ([providerName, nativeProvider]) =>
+      isDynamicProvider(nativeProvider) && !sources.providers[providerName],
+  );
+
+  const cacheMissing = !(await fileExists(paths.cache));
+
+  // 拡張ロード時の registerCachedProviders が model-sources.json の内容を登録済み。
+  // ここで毎回全件を登録し直すと起動のたびに同じ処理を二重に走らせることになり、
+  // 850KB の cache/models.json の読み直しも無駄になる。
+  // 更新が必要なとき（キャッシュ欠落・新規プロバイダ・ロード時登録の失敗）だけ登録する。
+  if (!cacheMissing && pending.length === 0 && hasRegisteredCachedProviders()) {
+    return;
+  }
+
+  let cache = await loadPiCache(paths.cache);
   let refreshedCache = false;
-  if (!(await fileExists(paths.cache))) {
+  if (cacheMissing) {
     cache = await refreshFullPiCatalog(cache, paths, ctx);
     refreshedCache = true;
   }
-
-  for (const [providerName, nativeProvider] of Object.entries(native.providers)) {
-    if (!isDynamicProvider(nativeProvider) || sources.providers[providerName]) {
-      continue;
-    }
-
-    try {
-      newProviders.set(
-        providerName,
-        await fetchCustomModelIds(providerName, nativeProvider, ctx)
-      );
-    } catch (error) {
-      ctx.ui.notify(
-        `${EXTENSION_LABEL}: ${providerName} initial sync failed: ${errorMessage(error)}`,
-        "error"
-      );
-    }
+  const fetched = await Promise.all(
+    pending.map(async ([providerName, nativeProvider]) => {
+      try {
+        return [
+          providerName,
+          await fetchCustomModelIds(providerName, nativeProvider, ctx),
+        ] as const;
+      } catch (error) {
+        ctx.ui.notify(
+          `${EXTENSION_LABEL}: ${providerName} initial sync failed: ${errorMessage(error)}`,
+          "error",
+        );
+        return undefined;
+      }
+    }),
+  );
+  for (const entry of fetched) {
+    if (entry) newProviders.set(entry[0], entry[1]);
   }
 
   if (newProviders.size > 0) {
@@ -325,24 +360,39 @@ export async function synchronizeAllProviders(
     await saveSources(paths, sources);
   }
 
-  await registerDynamicProviders(pi, native, sources, cache, (providerName, error) =>
-    ctx.ui.notify(
-      `${EXTENSION_LABEL}: ${providerName} registration failed: ${errorMessage(error)}`,
-      "error"
-    )
+  await registerDynamicProviders(
+    pi,
+    native,
+    sources,
+    cache,
+    (providerName, error) =>
+      ctx.ui.notify(
+        `${EXTENSION_LABEL}: ${providerName} registration failed: ${errorMessage(error)}`,
+        "error",
+      ),
   );
 }
 
-export async function registerCachedProviders(pi: RegisterTarget): Promise<void> {
+let cachedRegistrationDone = false;
+
+export async function registerCachedProviders(
+  pi: RegisterTarget,
+): Promise<void> {
   const paths = getConfigPaths();
   const { native, sources, cache } = await loadState(paths);
   await registerDynamicProviders(pi, native, sources, cache);
+  cachedRegistrationDone = true;
+}
+
+/** 拡張ロード時に登録済みか。未登録・失敗時のみ session_start で登録し直すために使う */
+function hasRegisteredCachedProviders(): boolean {
+  return cachedRegistrationDone;
 }
 
 export async function reloadProvider(
   pi: RegisterTarget,
   ctx: ExtensionContext,
-  providerName: string
+  providerName: string,
 ): Promise<void> {
   const name = providerName.trim();
   if (name.length === 0) {
@@ -368,6 +418,6 @@ export async function reloadProvider(
     name,
     nativeProvider,
     sources.providers[name],
-    cache
+    cache,
   );
 }

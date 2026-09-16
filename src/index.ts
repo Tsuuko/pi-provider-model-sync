@@ -1,11 +1,11 @@
 import type {
   ExtensionAPI,
-  ExtensionContext
+  ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import {
   reloadProvider,
   registerCachedProviders,
-  synchronizeAllProviders
+  synchronizeAllProviders,
 } from "./sync.ts";
 
 const LABEL = "pi-provider-model-sync";
@@ -20,10 +20,10 @@ export default async function (pi: ExtensionAPI): Promise<void> {
       } catch (error) {
         ctx.ui.notify(
           `${LABEL}: ${error instanceof Error ? error.message : String(error)}`,
-          "error"
+          "error",
         );
       }
-    }
+    },
   });
 
   pi.on("session_start", async (_event, ctx: ExtensionContext) => {
@@ -32,7 +32,7 @@ export default async function (pi: ExtensionAPI): Promise<void> {
     } catch (error) {
       ctx.ui.notify(
         `${LABEL}: startup sync failed: ${error instanceof Error ? error.message : String(error)}`,
-        "error"
+        "error",
       );
     }
   });
