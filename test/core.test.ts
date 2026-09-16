@@ -11,14 +11,14 @@ import {
   parseModelIds,
   resolveSourceReference,
   stripSourceTransportFields,
-  validateSourceProvider
+  validateSourceProvider,
 } from "../src/core.ts";
 
 describe("parseConfigReference", () => {
   it("parses provider/model", () => {
     assert.deepEqual(parseConfigReference("openai/gpt-5.6-sol"), {
       provider: "openai",
-      modelId: "gpt-5.6-sol"
+      modelId: "gpt-5.6-sol",
     });
   });
 
@@ -34,40 +34,35 @@ describe("getModelConfigState", () => {
     assert.deepEqual(getModelConfigState({ id: "a" }), { kind: "unset" });
     assert.deepEqual(getModelConfigState({ id: "a", config: null }), { kind: "unset" });
     assert.deepEqual(getModelConfigState({ id: "a", config: "" }), { kind: "default" });
-    assert.deepEqual(
-      getModelConfigState({ id: "a", config: "openai/gpt-5.6-sol" }),
-      { kind: "reference", provider: "openai", modelId: "gpt-5.6-sol" }
-    );
+    assert.deepEqual(getModelConfigState({ id: "a", config: "openai/gpt-5.6-sol" }), {
+      kind: "reference",
+      provider: "openai",
+      modelId: "gpt-5.6-sol",
+    });
   });
 });
 
 describe("resolveSourceReference", () => {
   it("prefers the model config over the provider config", () => {
     assert.deepEqual(
-      resolveSourceReference(
-        { id: "terra", config: "anthropic/claude-sonnet-4-6" },
-        "openai"
-      ),
-      { provider: "anthropic", modelId: "claude-sonnet-4-6" }
+      resolveSourceReference({ id: "terra", config: "anthropic/claude-sonnet-4-6" }, "openai"),
+      { provider: "anthropic", modelId: "claude-sonnet-4-6" },
     );
   });
 
   it("uses the provider config with the model id when model config is unset", () => {
-    assert.deepEqual(
-      resolveSourceReference({ id: "gpt-5.4" }, "openai-codex"),
-      { provider: "openai-codex", modelId: "gpt-5.4" }
-    );
-    assert.deepEqual(
-      resolveSourceReference({ id: "gpt-5.4", config: null }, "openai-codex"),
-      { provider: "openai-codex", modelId: "gpt-5.4" }
-    );
+    assert.deepEqual(resolveSourceReference({ id: "gpt-5.4" }, "openai-codex"), {
+      provider: "openai-codex",
+      modelId: "gpt-5.4",
+    });
+    assert.deepEqual(resolveSourceReference({ id: "gpt-5.4", config: null }, "openai-codex"), {
+      provider: "openai-codex",
+      modelId: "gpt-5.4",
+    });
   });
 
   it("returns undefined for empty model config even with a provider config", () => {
-    assert.equal(
-      resolveSourceReference({ id: "gpt-5.4", config: "" }, "openai-codex"),
-      undefined
-    );
+    assert.equal(resolveSourceReference({ id: "gpt-5.4", config: "" }, "openai-codex"), undefined);
   });
 
   it("returns undefined when neither config is set", () => {
@@ -75,16 +70,11 @@ describe("resolveSourceReference", () => {
   });
 
   it("ignores an invalid provider config when the model config is empty", () => {
-    assert.equal(
-      resolveSourceReference({ id: "a", config: "" }, "openai/gpt-5"),
-      undefined
-    );
+    assert.equal(resolveSourceReference({ id: "a", config: "" }, "openai/gpt-5"), undefined);
   });
 
   it("rejects an invalid provider config when the model config is unset", () => {
-    assert.throws(() =>
-      resolveSourceReference({ id: "a" }, "openai/gpt-5")
-    );
+    assert.throws(() => resolveSourceReference({ id: "a" }, "openai/gpt-5"));
   });
 });
 
@@ -92,41 +82,37 @@ describe("validateSourceProvider", () => {
   it("rejects duplicate ids", () => {
     assert.throws(() =>
       validateSourceProvider("p", {
-        models: [{ id: "a" }, { id: "a" }]
-      })
+        models: [{ id: "a" }, { id: "a" }],
+      }),
     );
   });
 
   it("rejects override of structural fields", () => {
     assert.throws(() =>
       validateSourceProvider("p", {
-        models: [{ id: "a", override: { id: "b" } }]
-      })
+        models: [{ id: "a", override: { id: "b" } }],
+      }),
     );
     assert.throws(() =>
       validateSourceProvider("p", {
         models: [{ id: "a" }],
-        override: { config: "openai/x" }
-      })
+        override: { config: "openai/x" },
+      }),
     );
   });
 
   it("rejects invalid config references", () => {
     assert.throws(() =>
       validateSourceProvider("p", {
-        models: [{ id: "a", config: "bad" }]
-      })
+        models: [{ id: "a", config: "bad" }],
+      }),
     );
   });
 
   it("accepts valid sources", () => {
     validateSourceProvider("p", {
       override: { maxTokens: 100 },
-      models: [
-        { id: "a" },
-        { id: "b", config: "" },
-        { id: "c", config: "openai/gpt-5.6-sol" }
-      ]
+      models: [{ id: "a" }, { id: "b", config: "" }, { id: "c", config: "openai/gpt-5.6-sol" }],
     });
   });
 });
@@ -138,7 +124,7 @@ describe("mergeModelIds", () => {
     assert.deepEqual(merged, [
       { id: "a", config: "openai/gpt-5.6-sol", override: { maxTokens: 1 } },
       { id: "b", config: null },
-      { id: "c", config: null }
+      { id: "c", config: null },
     ]);
   });
 
@@ -152,9 +138,9 @@ describe("parseModelIds", () => {
     assert.deepEqual(
       parseModelIds({
         object: "list",
-        data: [{ id: "a" }, { id: "b" }]
+        data: [{ id: "a" }, { id: "b" }],
       }),
-      ["a", "b"]
+      ["a", "b"],
     );
   });
 
@@ -175,9 +161,9 @@ describe("normalizeFullCatalog", () => {
           api: "openai-responses",
           baseUrl: "https://api.openai.com/v1",
           name: "GPT-5.6 Sol",
-          contextWindow: 272000
-        }
-      }
+          contextWindow: 272000,
+        },
+      },
     });
     assert.deepEqual(catalog, {
       openai: {
@@ -185,9 +171,9 @@ describe("normalizeFullCatalog", () => {
           id: "gpt-5.6-sol",
           api: "openai-responses",
           name: "GPT-5.6 Sol",
-          contextWindow: 272000
-        }
-      }
+          contextWindow: 272000,
+        },
+      },
     });
   });
 
@@ -201,12 +187,12 @@ describe("deepMerge", () => {
   it("recursively merges objects and replaces arrays", () => {
     const merged = deepMerge(
       { a: 1, nested: { x: 1, y: 2 }, list: [1, 2] },
-      { a: 2, nested: { y: 3, z: 4 }, list: [9] }
+      { a: 2, nested: { y: 3, z: 4 }, list: [9] },
     );
     assert.deepEqual(merged, {
       a: 2,
       nested: { x: 1, y: 3, z: 4 },
-      list: [9]
+      list: [9],
     });
   });
 });
@@ -225,10 +211,10 @@ describe("buildResolvedModel", () => {
         api: "openai-responses",
         baseUrl: "https://api.openai.com/v1",
         reasoning: true,
-        contextWindow: 999
+        contextWindow: 999,
       },
       undefined,
-      undefined
+      undefined,
     );
     assert.equal(model.id, "terra");
     assert.equal(model.reasoning, true);
@@ -242,13 +228,13 @@ describe("buildResolvedModel", () => {
       "terra",
       { id: "gpt-5.6-sol", contextWindow: 100 },
       { contextWindow: 200, compat: { supportsDeveloperRole: false } },
-      { maxTokens: 50, compat: { supportsStrictMode: true } }
+      { maxTokens: 50, compat: { supportsStrictMode: true } },
     );
     assert.equal(model.contextWindow, 200);
     assert.equal(model.maxTokens, 50);
     assert.deepEqual(model.compat, {
       supportsDeveloperRole: false,
-      supportsStrictMode: true
+      supportsStrictMode: true,
     });
   });
 });
@@ -262,9 +248,9 @@ describe("stripSourceTransportFields", () => {
         baseUrl: "https://x",
         provider: "openai",
         name: "X",
-        reasoning: true
+        reasoning: true,
       }),
-      { name: "X", reasoning: true }
+      { name: "X", reasoning: true },
     );
   });
 });

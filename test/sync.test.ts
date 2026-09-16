@@ -3,11 +3,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import {
-  registerCachedProviders,
-  reloadProvider,
-  synchronizeAllProviders,
-} from "../src/sync.ts";
+import { registerCachedProviders, reloadProvider, synchronizeAllProviders } from "../src/sync.ts";
 
 async function prepareAgentDir(): Promise<string> {
   const agentDir = await mkdtemp(join(tmpdir(), "pi-model-sync-"));
@@ -106,8 +102,9 @@ describe("reloadProvider", () => {
     globalThis.fetch = (async (url: string) =>
       String(url).includes("pi.dev")
         ? new Response(JSON.stringify({ openai: { m1: { id: "m1" } } }))
-        : new Response(JSON.stringify({ data: [{ id: "m1" }, { id: "m2" }] }))
-    ) as typeof globalThis.fetch;
+        : new Response(
+            JSON.stringify({ data: [{ id: "m1" }, { id: "m2" }] }),
+          )) as typeof globalThis.fetch;
     try {
       const { pi, ctx, notifications } = createStubs();
       const result = await reloadProvider(pi, ctx, "p1");

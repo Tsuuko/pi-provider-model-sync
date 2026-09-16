@@ -2,31 +2,42 @@
   "name": "pi-provider-model-sync",
   "version": "0.1.0",
   "description": "Sync custom Pi provider models with the Pi model catalog.",
-  "type": "module",
-  "keywords": ["pi-package", "pi", "models", "providers"],
+  "keywords": [
+    "models",
+    "pi",
+    "pi-package",
+    "providers"
+  ],
   "license": "MIT",
   "files": [
     "src",
     "SPEC.md",
     "README.md",
     "tsconfig.json",
-    "oxlint.config.ts"
+    "oxlint.config.ts",
+    ".oxfmtrc.json"
   ],
-  "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
-  },
-  "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.2",
-    "oxlint": "1.78.0",
-    "typescript": "7.1.0-dev.20260817.1"
-  },
+  "type": "module",
   "scripts": {
+    "format": "oxfmt src test",
+    "format:check": "oxfmt --check src test",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --type-aware src",
     "test": "node --test"
   },
-  "pi": {
-    "extensions": ["./src/index.ts"]
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.2",
+    "oxfmt": "0.68.0",
+    "oxlint": "1.78.0",
+    "typescript": "7.1.0-dev.20260817.1"
   },
-  "packageManager": "pnpm@11.21.0"
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "packageManager": "pnpm@11.21.0",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
 }

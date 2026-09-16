@@ -29,10 +29,10 @@ export const DEFAULT_MODEL_VALUES = {
     input: 0,
     output: 0,
     cacheRead: 0,
-    cacheWrite: 0
+    cacheWrite: 0,
   },
   contextWindow: 128000,
-  maxTokens: 16384
+  maxTokens: 16384,
 } as const;
 
 export function isRecord(value: unknown): value is JsonObject {
@@ -43,10 +43,7 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function deepMerge(
-  base: JsonObject,
-  override: JsonObject
-): JsonObject {
+export function deepMerge(base: JsonObject, override: JsonObject): JsonObject {
   const result = structuredClone(base);
 
   for (const [key, value] of Object.entries(override)) {
@@ -67,21 +64,17 @@ export function parseConfigReference(value: string): {
 } {
   const reference = value.trim();
   if (reference.length === 0) {
-    throw new Error(
-      `Invalid config reference "${value}". Expected provider/model.`
-    );
+    throw new Error(`Invalid config reference "${value}". Expected provider/model.`);
   }
 
   const separator = reference.indexOf("/");
   if (separator <= 0 || separator === reference.length - 1) {
-    throw new Error(
-      `Invalid config reference "${value}". Expected provider/model.`
-    );
+    throw new Error(`Invalid config reference "${value}". Expected provider/model.`);
   }
 
   return {
     provider: reference.slice(0, separator),
-    modelId: reference.slice(separator + 1)
+    modelId: reference.slice(separator + 1),
   };
 }
 
@@ -105,25 +98,19 @@ export function validateProviderConfig(value: string): void {
     throw new Error("Provider config must not be empty.");
   }
   if (name.includes("/")) {
-    throw new Error(
-      `Provider config must be a provider name, got "${value}".`
-    );
+    throw new Error(`Provider config must be a provider name, got "${value}".`);
   }
 }
 
 export function resolveSourceReference(
   model: SourceModel,
-  providerConfig: string | null | undefined
+  providerConfig: string | null | undefined,
 ): { provider: string; modelId: string } | undefined {
   const state = getModelConfigState(model);
   if (state.kind === "reference") {
     return { provider: state.provider, modelId: state.modelId };
   }
-  if (
-    state.kind === "unset" &&
-    providerConfig !== undefined &&
-    providerConfig !== null
-  ) {
+  if (state.kind === "unset" && providerConfig !== undefined && providerConfig !== null) {
     validateProviderConfig(providerConfig);
     return { provider: providerConfig, modelId: model.id };
   }
@@ -136,24 +123,15 @@ export function validateSourceModel(model: SourceModel): void {
   }
 
   if (model.override && ("id" in model.override || "config" in model.override)) {
-    throw new Error(
-      `Model ${model.id}: override cannot contain id or config.`
-    );
+    throw new Error(`Model ${model.id}: override cannot contain id or config.`);
   }
 
-  if (
-    model.config !== undefined &&
-    model.config !== null &&
-    model.config.trim().length > 0
-  ) {
+  if (model.config !== undefined && model.config !== null && model.config.trim().length > 0) {
     parseConfigReference(model.config);
   }
 }
 
-export function validateSourceProvider(
-  providerName: string,
-  provider: SourceProvider
-): void {
+export function validateSourceProvider(providerName: string, provider: SourceProvider): void {
   if (!Array.isArray(provider.models)) {
     throw new Error(`Provider ${providerName}: models must be an array.`);
   }
@@ -168,9 +146,7 @@ export function validateSourceProvider(
   }
 
   if (provider.override && ("id" in provider.override || "config" in provider.override)) {
-    throw new Error(
-      `Provider ${providerName}: override cannot contain id or config.`
-    );
+    throw new Error(`Provider ${providerName}: override cannot contain id or config.`);
   }
 
   if (provider.config !== undefined && provider.config !== null) {
@@ -178,10 +154,7 @@ export function validateSourceProvider(
   }
 }
 
-export function mergeModelIds(
-  existing: SourceModel[],
-  ids: readonly string[]
-): SourceModel[] {
+export function mergeModelIds(existing: SourceModel[], ids: readonly string[]): SourceModel[] {
   const result = existing.map((model) => structuredClone(model));
   const known = new Set<string>();
 
@@ -241,8 +214,7 @@ export function normalizeFullCatalog(payload: unknown): PiCatalog {
     const normalized: Record<string, PiModel> = {};
     for (const [modelId, model] of Object.entries(models)) {
       if (!isRecord(model)) continue;
-      const id =
-        typeof model.id === "string" && model.id.length > 0 ? model.id : modelId;
+      const id = typeof model.id === "string" && model.id.length > 0 ? model.id : modelId;
       if (id.length === 0) continue;
       const result = structuredClone(model);
       delete result.baseUrl;
@@ -267,7 +239,7 @@ export function buildDefaultModel(id: string): JsonObject {
     input: [...DEFAULT_MODEL_VALUES.input],
     cost: structuredClone(DEFAULT_MODEL_VALUES.cost),
     contextWindow: DEFAULT_MODEL_VALUES.contextWindow,
-    maxTokens: DEFAULT_MODEL_VALUES.maxTokens
+    maxTokens: DEFAULT_MODEL_VALUES.maxTokens,
   };
 }
 
@@ -284,14 +256,12 @@ export function buildResolvedModel(
   targetId: string,
   sourceModel: JsonObject | undefined,
   providerOverride: JsonObject | undefined,
-  modelOverride: JsonObject | undefined
+  modelOverride: JsonObject | undefined,
 ): JsonObject {
   const base = sourceModel
     ? { ...buildDefaultModel(targetId), ...stripSourceTransportFields(sourceModel), id: targetId }
     : buildDefaultModel(targetId);
-  const withProviderOverride = providerOverride
-    ? deepMerge(base, providerOverride)
-    : base;
+  const withProviderOverride = providerOverride ? deepMerge(base, providerOverride) : base;
   const resolved = modelOverride
     ? deepMerge(withProviderOverride, modelOverride)
     : withProviderOverride;

@@ -163,6 +163,7 @@ pi-messages
 
 ```bash
 pnpm install
+pnpm format     # oxfmt で整形
 pnpm typecheck  # TypeScript 型チェック
 pnpm lint       # oxlint (type-aware)
 pnpm test       # node --test

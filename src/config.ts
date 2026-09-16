@@ -1,10 +1,4 @@
-import {
-  access,
-  mkdir,
-  readFile,
-  rename,
-  writeFile
-} from "node:fs/promises";
+import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
@@ -12,7 +6,7 @@ import {
   isRecord,
   type ModelSourcesFile,
   type PiCatalog,
-  type SourceProvider
+  type SourceProvider,
 } from "./core.ts";
 
 export interface NativeProviderConfig {
@@ -35,14 +29,10 @@ export interface ConfigPaths {
 }
 
 export function getConfigPaths(): ConfigPaths {
-  const root = resolve(
-    getAgentDir(),
-    "extensions",
-    "pi-provider-model-sync"
-  );
+  const root = resolve(getAgentDir(), "extensions", "pi-provider-model-sync");
   return {
     sources: join(root, "model-sources.json"),
-    cache: join(root, "cache", "models.json")
+    cache: join(root, "cache", "models.json"),
   };
 }
 
@@ -165,9 +155,7 @@ export async function loadModelSources(path: string): Promise<ModelSourcesFile> 
       ...(typeof value.config === "string" && value.config.trim().length > 0
         ? { config: value.config }
         : {}),
-      ...(isRecord(value.override)
-        ? { override: structuredClone(value.override) }
-        : {})
+      ...(isRecord(value.override) ? { override: structuredClone(value.override) } : {}),
     };
   }
   return { providers };

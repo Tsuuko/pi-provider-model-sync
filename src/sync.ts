@@ -47,10 +47,7 @@ function stringHeaders(value: unknown): Record<string, string> {
   return headers;
 }
 
-async function requestJson(
-  url: string,
-  headers: Record<string, string>,
-): Promise<unknown> {
+async function requestJson(url: string, headers: Record<string, string>): Promise<unknown> {
   const response = await fetch(url, {
     headers: {
       Accept: "application/json",
@@ -96,10 +93,7 @@ async function requestHeaders(
   return headers;
 }
 
-function getBaseUrl(
-  providerName: string,
-  nativeProvider: NativeProviderConfig,
-): string {
+function getBaseUrl(providerName: string, nativeProvider: NativeProviderConfig): string {
   const baseUrl = nativeProvider.baseUrl;
   if (!baseUrl || baseUrl.trim().length === 0) {
     throw new Error(`Provider ${providerName}: baseUrl is required.`);
@@ -182,9 +176,7 @@ function sourceProviderConfig(
     baseUrl,
     api,
     ...(native.apiKey !== undefined ? { apiKey: native.apiKey } : {}),
-    ...(native.authHeader !== undefined
-      ? { authHeader: native.authHeader }
-      : {}),
+    ...(native.authHeader !== undefined ? { authHeader: native.authHeader } : {}),
     ...(native.headers !== undefined ? { headers: native.headers } : {}),
     // SAFETY: models は buildResolvedModel / Pi カタログ正規化済みのモデル JSON で、ProviderConfig のモデル形状と実行時に一致する
     models: models as unknown as NonNullable<ProviderConfig["models"]>,
@@ -206,20 +198,11 @@ async function resolveAndRegisterProvider(
     let catalogModel: JsonObject | undefined;
 
     if (reference) {
-      catalogModel = getCachedPiModel(
-        cache,
-        reference.provider,
-        reference.modelId,
-      );
+      catalogModel = getCachedPiModel(cache, reference.provider, reference.modelId);
     }
 
     models.push(
-      buildResolvedModel(
-        sourceModel.id,
-        catalogModel,
-        source.override,
-        sourceModel.override,
-      ),
+      buildResolvedModel(sourceModel.id, catalogModel, source.override, sourceModel.override),
     );
   }
 
@@ -249,10 +232,7 @@ function updateSourceProvider(
   };
 }
 
-async function saveSources(
-  paths: ConfigPaths,
-  sources: ModelSourcesFile,
-): Promise<void> {
+async function saveSources(paths: ConfigPaths, sources: ModelSourcesFile): Promise<void> {
   await writeJsonAtomic(paths.sources, sources);
 }
 
@@ -276,20 +256,12 @@ async function registerDynamicProviders(
   cache: PiCatalog,
   onError?: (providerName: string, error: unknown) => void,
 ): Promise<void> {
-  for (const [providerName, nativeProvider] of Object.entries(
-    native.providers,
-  )) {
+  for (const [providerName, nativeProvider] of Object.entries(native.providers)) {
     if (!isDynamicProvider(nativeProvider)) continue;
     const source = sources.providers[providerName];
     if (!source) continue;
     try {
-      await resolveAndRegisterProvider(
-        pi,
-        providerName,
-        nativeProvider,
-        source,
-        cache,
-      );
+      await resolveAndRegisterProvider(pi, providerName, nativeProvider, source, cache);
     } catch (error) {
       onError?.(providerName, error);
     }
@@ -360,24 +332,17 @@ export async function synchronizeAllProviders(
     await saveSources(paths, sources);
   }
 
-  await registerDynamicProviders(
-    pi,
-    native,
-    sources,
-    cache,
-    (providerName, error) =>
-      ctx.ui.notify(
-        `${EXTENSION_LABEL}: ${providerName} registration failed: ${errorMessage(error)}`,
-        "error",
-      ),
+  await registerDynamicProviders(pi, native, sources, cache, (providerName, error) =>
+    ctx.ui.notify(
+      `${EXTENSION_LABEL}: ${providerName} registration failed: ${errorMessage(error)}`,
+      "error",
+    ),
   );
 }
 
 let cachedRegistrationDone = false;
 
-export async function registerCachedProviders(
-  pi: RegisterTarget,
-): Promise<void> {
+export async function registerCachedProviders(pi: RegisterTarget): Promise<void> {
   const paths = getConfigPaths();
   const { native, sources, cache } = await loadState(paths);
   await registerDynamicProviders(pi, native, sources, cache);
@@ -419,13 +384,7 @@ export async function reloadProvider(
   const added = sources.providers[name].models.length - before;
   await saveSources(paths, sources);
 
-  await resolveAndRegisterProvider(
-    pi,
-    name,
-    nativeProvider,
-    sources.providers[name],
-    cache,
-  );
+  await resolveAndRegisterProvider(pi, name, nativeProvider, sources.providers[name], cache);
 
   return { total: sources.providers[name].models.length, added };
 }

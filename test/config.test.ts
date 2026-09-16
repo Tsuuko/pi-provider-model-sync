@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import {
   fileExists,
   getConfigPaths,
   loadModelSources,
   loadPiCache,
-  writeJsonAtomic
+  writeJsonAtomic,
 } from "../src/config.ts";
 
 describe("getConfigPaths", () => {
@@ -20,11 +20,11 @@ describe("getConfigPaths", () => {
       const normalize = (p: string) => p.replace(/\\/g, "/");
       assert.equal(
         normalize(paths.sources),
-        normalize(join(agentDir, "extensions", "pi-provider-model-sync", "model-sources.json"))
+        normalize(join(agentDir, "extensions", "pi-provider-model-sync", "model-sources.json")),
       );
       assert.equal(
         normalize(paths.cache),
-        normalize(join(agentDir, "extensions", "pi-provider-model-sync", "cache", "models.json"))
+        normalize(join(agentDir, "extensions", "pi-provider-model-sync", "cache", "models.json")),
       );
     } finally {
       delete process.env.PI_CODING_AGENT_DIR;
@@ -70,8 +70,8 @@ describe("writeJsonAtomic and loaders", () => {
     const cachePath = join(dir, "cache", "models.json");
     await writeJsonAtomic(cachePath, {
       openai: {
-        "gpt-5.6-sol": { id: "gpt-5.6-sol", contextWindow: 272000 }
-      }
+        "gpt-5.6-sol": { id: "gpt-5.6-sol", contextWindow: 272000 },
+      },
     });
     const cache = await loadPiCache(cachePath);
     assert.equal(cache.openai?.["gpt-5.6-sol"]?.contextWindow, 272000);
@@ -79,8 +79,8 @@ describe("writeJsonAtomic and loaders", () => {
     const raw = await readFile(cachePath, "utf8");
     assert.deepEqual(JSON.parse(raw), {
       openai: {
-        "gpt-5.6-sol": { id: "gpt-5.6-sol", contextWindow: 272000 }
-      }
+        "gpt-5.6-sol": { id: "gpt-5.6-sol", contextWindow: 272000 },
+      },
     });
   });
 });
