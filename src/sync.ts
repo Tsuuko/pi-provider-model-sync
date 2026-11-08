@@ -1,8 +1,4 @@
-import type {
-  ExtensionAPI,
-  ExtensionContext,
-  ProviderConfig,
-} from "@earendil-works/pi-coding-agent";
+import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
   buildResolvedModel,
   errorMessage,
@@ -13,378 +9,335 @@ import {
   resolveSourceReference,
   validateSourceProvider,
   type JsonObject,
-  type ModelSourcesFile,
   type PiCatalog,
+  type SourceModel,
   type SourceProvider,
 } from "./core.ts";
 import {
-  fileExists,
   getConfigPaths,
   loadModelSources,
   loadNativeModels,
   loadPiCache,
   writeJsonAtomic,
-  type ConfigPaths,
   type NativeModelsFile,
   type NativeProviderConfig,
 } from "./config.ts";
+import { selectProvider, selectProviderModels, type ModelChoice } from "./ui.ts";
 
 const PI_MODELS_URL = "https://pi.dev/api/models";
-const EXTENSION_LABEL = "pi-provider-model-sync";
+const LABEL = "pi-provider-model-sync";
 
-type RegisterTarget = Pick<ExtensionAPI, "registerProvider">;
-
-function appendPath(baseUrl: string, path: string): string {
-  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
-}
+type NativeModel = JsonObject & { id: string };
 
 function stringHeaders(value: unknown): Record<string, string> {
   if (!isRecord(value)) return {};
-  const headers: Record<string, string> = {};
-  for (const [key, entry] of Object.entries(value)) {
-    if (typeof entry === "string") headers[key] = entry;
-  }
-  return headers;
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
 }
 
-async function requestJson(url: string, headers: Record<string, string>): Promise<unknown> {
-  const response = await fetch(url, {
-    headers: {
-      Accept: "application/json",
-      ...headers,
-    },
-    // ponytail: 起動を止めないための固定上限。環境変数で調整したくなったら定数化する
-    signal: AbortSignal.timeout(10_000),
+async function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return operation;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason);
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
   });
-  if (!response.ok) {
-    throw new Error(`GET ${url} failed with HTTP ${response.status}.`);
-  }
+}
+
+async function requestJson(
+  url: string,
+  headers: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  signal?.throwIfAborted();
+  const response = await fetch(url, {
+    headers: { Accept: "application/json", ...headers },
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+      : AbortSignal.timeout(10_000),
+  });
+  if (!response.ok) throw new Error(`GET ${url} failed with HTTP ${response.status}.`);
   try {
     return await response.json();
   } catch (error) {
+    signal?.throwIfAborted();
     throw new Error(`GET ${url} returned invalid JSON: ${errorMessage(error)}`);
   }
 }
 
-async function requestHeaders(
-  providerName: string,
-  nativeProvider: NativeProviderConfig,
-  ctx: ExtensionContext,
-): Promise<Record<string, string>> {
-  const provider = ctx.modelRegistry.getProvider(providerName);
-  const headers = {
-    ...stringHeaders(nativeProvider.headers),
-    ...stringHeaders(provider?.headers),
-  };
-
-  const auth = await ctx.modelRegistry.getProviderAuth(providerName);
-  if (auth?.auth.headers) {
-    Object.assign(headers, stringHeaders(auth.auth.headers));
-  }
-
-  if (
-    nativeProvider.authHeader &&
-    auth?.auth.apiKey &&
-    !Object.keys(headers).some((key) => key.toLowerCase() === "authorization")
-  ) {
-    headers.Authorization = `Bearer ${auth.auth.apiKey}`;
-  }
-
-  return headers;
-}
-
-function getBaseUrl(providerName: string, nativeProvider: NativeProviderConfig): string {
-  const baseUrl = nativeProvider.baseUrl;
-  if (!baseUrl || baseUrl.trim().length === 0) {
-    throw new Error(`Provider ${providerName}: baseUrl is required.`);
-  }
-  return baseUrl;
-}
-
-function getApi(
-  providerName: string,
-  nativeProvider: NativeProviderConfig,
-): NonNullable<ProviderConfig["api"]> {
-  if (!nativeProvider.api || nativeProvider.api.trim().length === 0) {
-    throw new Error(`Provider ${providerName}: api is required.`);
-  }
-  return nativeProvider.api as NonNullable<ProviderConfig["api"]>;
-}
-
 async function fetchCustomModelIds(
   providerName: string,
-  nativeProvider: NativeProviderConfig,
+  provider: NativeProviderConfig,
   ctx: ExtensionContext,
+  signal?: AbortSignal,
 ): Promise<string[]> {
+  signal?.throwIfAborted();
   const url =
-    nativeProvider.modelsUrl?.trim() ||
-    appendPath(getBaseUrl(providerName, nativeProvider), "models");
-  const headers = await requestHeaders(providerName, nativeProvider, ctx);
-  const payload = await requestJson(url, headers);
-  return parseModelIds(payload);
+    provider.modelsUrl?.trim() ||
+    (provider.baseUrl ? `${provider.baseUrl.replace(/\/+$/, "")}/models` : undefined);
+  if (!url) throw new Error(`Provider ${providerName}: baseUrl or modelsUrl is required.`);
+  const registered = ctx.modelRegistry.getProvider(providerName);
+  const headers = new Headers(stringHeaders(provider.headers));
+  const auth = await abortable(ctx.modelRegistry.getProviderAuth(providerName), signal);
+  for (const values of [registered?.headers, auth?.auth.headers]) {
+    for (const [name, value] of Object.entries(stringHeaders(values))) {
+      headers.set(name, value);
+    }
+  }
+  if (provider.authHeader && auth?.auth.apiKey && !headers.has("authorization")) {
+    headers.set("Authorization", `Bearer ${auth.auth.apiKey}`);
+  }
+  return parseModelIds(await requestJson(url, Object.fromEntries(headers.entries()), signal));
 }
 
-async function fetchFullPiCatalog(): Promise<PiCatalog> {
-  const payload = await requestJson(PI_MODELS_URL, {});
-  return normalizeFullCatalog(payload);
+function nativeModels(providerName: string, provider: NativeProviderConfig): NativeModel[] {
+  if (provider.models === undefined) return [];
+  if (!Array.isArray(provider.models))
+    throw new Error(`Provider ${providerName}: models must be an array.`);
+  const ids = new Set<string>();
+  return provider.models.map((model) => {
+    if (!isRecord(model) || typeof model.id !== "string" || model.id.trim().length === 0) {
+      throw new Error(`Provider ${providerName}: every model must have a non-empty id.`);
+    }
+    if (ids.has(model.id))
+      throw new Error(`Provider ${providerName}: duplicate model id ${model.id}.`);
+    ids.add(model.id);
+    return model as NativeModel;
+  });
 }
 
-function getCachedPiModel(
-  cache: PiCatalog,
-  sourceProvider: string,
-  sourceModelId: string,
-): JsonObject {
-  const model = cache[sourceProvider]?.[sourceModelId];
-  if (!model) {
+function resolveModel(model: SourceModel, source: SourceProvider, cache: PiCatalog): NativeModel {
+  const reference = resolveSourceReference(model, source.config);
+  const catalogModel = reference ? cache[reference.provider]?.[reference.modelId] : undefined;
+  if (reference && !catalogModel) {
     throw new Error(
-      `Pi model ${sourceProvider}/${sourceModelId} is not cached. Run /reload-provider to refresh.`,
+      `Pi model ${reference.provider}/${reference.modelId} was not found in the catalog.`,
     );
   }
-  return model;
+  return buildResolvedModel(model.id, catalogModel, source.override, model.override) as NativeModel;
 }
 
-async function refreshFullPiCatalog(
-  current: PiCatalog,
-  paths: ConfigPaths,
+async function loadCatalog(
+  models: readonly { model: SourceModel; source: SourceProvider }[],
   ctx: ExtensionContext,
+  signal?: AbortSignal,
 ): Promise<PiCatalog> {
+  signal?.throwIfAborted();
+  if (!models.some(({ model, source }) => resolveSourceReference(model, source.config))) return {};
+  const paths = getConfigPaths();
+  const cache = await loadPiCache(paths.cache);
+  ctx.ui.notify(`${LABEL}: refreshing Pi catalog...`, "info");
   try {
-    const catalog = await fetchFullPiCatalog();
+    const catalog = normalizeFullCatalog(await requestJson(PI_MODELS_URL, {}, signal));
+    signal?.throwIfAborted();
     await writeJsonAtomic(paths.cache, catalog);
     return catalog;
   } catch (error) {
+    signal?.throwIfAborted();
     ctx.ui.notify(
-      `${EXTENSION_LABEL}: Pi models cache refresh failed: ${errorMessage(error)}`,
+      `${LABEL}: Pi catalog refresh failed; using cache: ${errorMessage(error)}`,
       "warning",
     );
-    return current;
+    return cache;
   }
 }
 
-function sourceProviderConfig(
-  providerName: string,
-  native: NativeProviderConfig,
-  models: readonly JsonObject[],
-): ProviderConfig {
-  const baseUrl = native.baseUrl;
-  const api = getApi(providerName, native);
-  if (!baseUrl || baseUrl.trim().length === 0) {
-    throw new Error(`Provider ${providerName}: baseUrl is required.`);
+async function ensureUnchanged(expected: NativeModelsFile): Promise<void> {
+  if (JSON.stringify(await loadNativeModels()) !== JSON.stringify(expected)) {
+    throw new Error("models.json changed during this operation. Reopen the command and try again.");
   }
-
-  return {
-    baseUrl,
-    api,
-    ...(native.apiKey !== undefined ? { apiKey: native.apiKey } : {}),
-    ...(native.authHeader !== undefined ? { authHeader: native.authHeader } : {}),
-    ...(native.headers !== undefined ? { headers: native.headers } : {}),
-    // SAFETY: models は buildResolvedModel / Pi カタログ正規化済みのモデル JSON で、ProviderConfig のモデル形状と実行時に一致する
-    models: models as unknown as NonNullable<ProviderConfig["models"]>,
-  };
 }
 
-async function resolveAndRegisterProvider(
-  pi: RegisterTarget,
-  providerName: string,
-  native: NativeProviderConfig,
-  source: SourceProvider,
-  cache: PiCatalog,
-): Promise<void> {
-  validateSourceProvider(providerName, source);
-  const models: JsonObject[] = [];
+async function refreshRegistry(ctx: ExtensionContext, signal?: AbortSignal): Promise<void> {
+  try {
+    await ctx.modelRegistry.refresh(
+      signal ? { allowNetwork: false, signal } : { allowNetwork: false },
+    );
+    signal?.throwIfAborted();
+    const error = ctx.modelRegistry.getError();
+    if (error) throw new Error(error);
+  } catch (error) {
+    signal?.throwIfAborted();
+    throw new Error(`models.json was saved, but Pi could not reload it: ${errorMessage(error)}`);
+  }
+}
 
-  for (const sourceModel of source.models) {
-    const reference = resolveSourceReference(sourceModel, source.config);
-    let catalogModel: JsonObject | undefined;
+export function modelChoices(
+  ids: readonly string[],
+  existing: readonly NativeModel[],
+  sources: readonly SourceModel[],
+): ModelChoice[] {
+  const available = new Set(ids);
+  const selected = new Set(existing.map((model) => model.id));
+  return [...new Set([...ids, ...selected, ...sources.map((model) => model.id)])]
+    .map((id) => ({
+      id,
+      checked: selected.has(id),
+      available: available.has(id),
+    }))
+    .sort(
+      (left, right) =>
+        Number(right.checked) - Number(left.checked) ||
+        Number(left.available) - Number(right.available),
+    );
+}
 
-    if (reference) {
-      catalogModel = getCachedPiModel(cache, reference.provider, reference.modelId);
-    }
-
-    models.push(
-      buildResolvedModel(sourceModel.id, catalogModel, source.override, sourceModel.override),
+export async function reloadProvider(
+  ctx: ExtensionContext,
+  providerName = "",
+  signal?: AbortSignal,
+): Promise<{ provider: string; total: number; added: number; removed: number } | undefined> {
+  if (!ctx.hasUI) throw new Error("/provider-models requires interactive UI.");
+  signal?.throwIfAborted();
+  const native = await loadNativeModels();
+  const names = Object.keys(native.providers);
+  if (names.length === 0) throw new Error("No providers are configured in models.json.");
+  const name = providerName.trim() || (await selectProvider(ctx, names, signal));
+  if (!name) return undefined;
+  const provider = native.providers[name];
+  if (!provider) throw new Error(`Provider ${name} was not found in models.json.`);
+  const existing = nativeModels(name, provider);
+  const paths = getConfigPaths();
+  const sources = await loadModelSources(paths.sources);
+  const source = sources.providers[name] ?? { models: [] };
+  validateSourceProvider(name, source);
+  ctx.ui.notify(`${LABEL}: ${name}: fetching /models...`, "info");
+  const ids = await fetchCustomModelIds(name, provider, ctx, signal);
+  const choices = modelChoices(ids, existing, source.models);
+  const selected = await selectProviderModels(ctx, name, choices, signal);
+  if (selected === undefined) return undefined;
+  const known = new Map(existing.map((model) => [model.id, model]));
+  const sourceModels = new Map(source.models.map((model) => [model.id, model]));
+  const added = selected.filter((id) => !known.has(id));
+  const selectedSet = new Set(selected);
+  const removed = new Set(
+    [...existing, ...source.models]
+      .filter((model) => !selectedSet.has(model.id))
+      .map((model) => model.id),
+  ).size;
+  if (
+    removed > 0 &&
+    !(await ctx.ui.confirm(
+      "Save model selection",
+      `Provider: ${name.replace(/\p{Cc}/gu, " ")}\nAdd: ${added.length}\nRemove: ${removed}\n\nRemoving models also deletes their source settings and overrides.`,
+      signal ? { signal } : undefined,
+    ))
+  )
+    return undefined;
+  const cache = await loadCatalog(
+    added.map((id) => ({ model: sourceModels.get(id) ?? { id }, source })),
+    ctx,
+    signal,
+  );
+  const models = [
+    ...existing.filter((model) => selectedSet.has(model.id)),
+    ...added.map((id) => resolveModel(sourceModels.get(id) ?? { id }, source, cache)),
+  ];
+  if (JSON.stringify(await loadModelSources(paths.sources)) !== JSON.stringify(sources)) {
+    throw new Error(
+      "model-sources.json changed during this operation. Reopen the command and try again.",
     );
   }
-
-  const providerConfig = sourceProviderConfig(providerName, native, models);
-  pi.registerProvider(providerName, providerConfig);
-}
-
-function isDynamicProvider(provider: NativeProviderConfig): boolean {
-  return Array.isArray(provider.models) && provider.models.length === 0;
-}
-
-function makeSourceProvider(ids: readonly string[]): SourceProvider {
-  return {
-    config: null,
-    models: ids.map((id) => ({ id, config: null })),
+  sources.providers[name] = {
+    ...source,
+    models: mergeModelIds(
+      source.models.filter((model) => selectedSet.has(model.id)),
+      selected,
+    ),
   };
-}
-
-function updateSourceProvider(
-  existing: SourceProvider | undefined,
-  ids: readonly string[],
-): SourceProvider {
-  if (!existing) return makeSourceProvider(ids);
-  return {
-    ...structuredClone(existing),
-    models: mergeModelIds(existing.models, ids),
-  };
-}
-
-async function saveSources(paths: ConfigPaths, sources: ModelSourcesFile): Promise<void> {
-  await writeJsonAtomic(paths.sources, sources);
-}
-
-async function loadState(paths: ConfigPaths): Promise<{
-  native: NativeModelsFile;
-  sources: ModelSourcesFile;
-  cache: PiCatalog;
-}> {
-  const [native, sources, cache] = await Promise.all([
-    loadNativeModels(),
-    loadModelSources(paths.sources),
-    loadPiCache(paths.cache),
-  ]);
-  return { native, sources, cache };
-}
-
-async function registerDynamicProviders(
-  pi: RegisterTarget,
-  native: NativeModelsFile,
-  sources: ModelSourcesFile,
-  cache: PiCatalog,
-  onError?: (providerName: string, error: unknown) => void,
-): Promise<void> {
-  for (const [providerName, nativeProvider] of Object.entries(native.providers)) {
-    if (!isDynamicProvider(nativeProvider)) continue;
-    const source = sources.providers[providerName];
-    if (!source) continue;
-    try {
-      await resolveAndRegisterProvider(pi, providerName, nativeProvider, source, cache);
-    } catch (error) {
-      onError?.(providerName, error);
-    }
+  await ensureUnchanged(native);
+  signal?.throwIfAborted();
+  provider.models = models;
+  await writeJsonAtomic(paths.models, native);
+  try {
+    await writeJsonAtomic(paths.sources, sources);
+  } catch (error) {
+    throw new Error(
+      `models.json was saved, but model-sources.json could not be saved: ${errorMessage(error)}`,
+    );
   }
+  await refreshRegistry(ctx, signal);
+  return {
+    provider: name,
+    total: models.length,
+    added: added.length,
+    removed,
+  };
 }
 
-export async function synchronizeAllProviders(
-  pi: RegisterTarget,
+export async function applyModelConfig(
   ctx: ExtensionContext,
-): Promise<void> {
+  providerName = "",
+  signal?: AbortSignal,
+): Promise<number | undefined> {
+  if (!ctx.hasUI) throw new Error("/provider-models requires interactive UI.");
+  signal?.throwIfAborted();
   const paths = getConfigPaths();
   const [native, sources] = await Promise.all([
     loadNativeModels(),
     loadModelSources(paths.sources),
   ]);
-  const newProviders = new Map<string, string[]>();
-
-  // 初回登録対象は並列に取得する。直列だと 1 プロバイダの待ち時間が
-  // プロバイダ数だけ積み上がり、起動がその分だけ遅くなる
-  const pending = Object.entries(native.providers).filter(
-    ([providerName, nativeProvider]) =>
-      isDynamicProvider(nativeProvider) && !sources.providers[providerName],
-  );
-
-  const cacheMissing = !(await fileExists(paths.cache));
-
-  // 拡張ロード時の registerCachedProviders が model-sources.json の内容を登録済み。
-  // ここで毎回全件を登録し直すと起動のたびに同じ処理を二重に走らせることになり、
-  // 850KB の cache/models.json の読み直しも無駄になる。
-  // 更新が必要なとき（キャッシュ欠落・新規プロバイダ・ロード時登録の失敗）だけ登録する。
-  if (!cacheMissing && pending.length === 0 && hasRegisteredCachedProviders()) {
-    return;
-  }
-
-  let cache = await loadPiCache(paths.cache);
-  let refreshedCache = false;
-  if (cacheMissing) {
-    cache = await refreshFullPiCatalog(cache, paths, ctx);
-    refreshedCache = true;
-  }
-  const fetched = await Promise.all(
-    pending.map(async ([providerName, nativeProvider]) => {
-      try {
-        return [
-          providerName,
-          await fetchCustomModelIds(providerName, nativeProvider, ctx),
-        ] as const;
-      } catch (error) {
-        ctx.ui.notify(
-          `${EXTENSION_LABEL}: ${providerName} initial sync failed: ${errorMessage(error)}`,
-          "error",
-        );
-        return undefined;
-      }
-    }),
-  );
-  for (const entry of fetched) {
-    if (entry) newProviders.set(entry[0], entry[1]);
-  }
-
-  if (newProviders.size > 0) {
-    if (!refreshedCache) {
-      cache = await refreshFullPiCatalog(cache, paths, ctx);
-    }
-    for (const [providerName, ids] of newProviders) {
-      sources.providers[providerName] = makeSourceProvider(ids);
-    }
-    await saveSources(paths, sources);
-  }
-
-  await registerDynamicProviders(pi, native, sources, cache, (providerName, error) =>
-    ctx.ui.notify(
-      `${EXTENSION_LABEL}: ${providerName} registration failed: ${errorMessage(error)}`,
-      "error",
-    ),
-  );
-}
-
-let cachedRegistrationDone = false;
-
-export async function registerCachedProviders(pi: RegisterTarget): Promise<void> {
-  const paths = getConfigPaths();
-  const { native, sources, cache } = await loadState(paths);
-  await registerDynamicProviders(pi, native, sources, cache);
-  cachedRegistrationDone = true;
-}
-
-/** 拡張ロード時に登録済みか。未登録・失敗時のみ session_start で登録し直すために使う */
-function hasRegisteredCachedProviders(): boolean {
-  return cachedRegistrationDone;
-}
-
-export async function reloadProvider(
-  pi: RegisterTarget,
-  ctx: ExtensionContext,
-  providerName: string,
-): Promise<{ total: number; added: number }> {
   const name = providerName.trim();
-  if (name.length === 0) {
-    throw new Error("Usage: /reload-provider <provider>");
+  if (name && !native.providers[name])
+    throw new Error(`Provider ${name} was not found in models.json.`);
+  if (name && !sources.providers[name])
+    throw new Error(`Provider ${name} has no model-sources.json configuration.`);
+  const pending: {
+    provider: NativeProviderConfig;
+    model: SourceModel;
+    source: SourceProvider;
+    index: number;
+  }[] = [];
+  for (const [providerId, provider] of Object.entries(native.providers)) {
+    if (name && name !== providerId) continue;
+    const source = sources.providers[providerId];
+    if (!source) continue;
+    validateSourceProvider(providerId, source);
+    const indices = new Map(
+      nativeModels(providerId, provider).map((model, index) => [model.id, index]),
+    );
+    for (const model of source.models) {
+      pending.push({
+        provider,
+        model,
+        source,
+        index: indices.get(model.id) ?? -1,
+      });
+    }
   }
-
-  const paths = getConfigPaths();
-  const { native, sources } = await loadState(paths);
-  const nativeProvider = native.providers[name];
-  if (!nativeProvider || !isDynamicProvider(nativeProvider)) {
-    throw new Error(`Dynamic provider ${name} was not found in models.json.`);
+  if (pending.length === 0) return 0;
+  if (
+    !(await ctx.ui.confirm(
+      "Apply model settings",
+      `Add or update ${pending.length} models from model-sources.json? Existing settings for these models will be replaced.`,
+      signal ? { signal } : undefined,
+    ))
+  )
+    return undefined;
+  const cache = await loadCatalog(pending, ctx, signal);
+  const expected = structuredClone(native);
+  for (const { provider, model, source, index } of pending) {
+    const models = (provider.models ??= []);
+    const resolved = resolveModel(model, source, cache);
+    if (index < 0) models.push(resolved);
+    else models[index] = resolved;
   }
-
-  // notify は同一メッセージの連続呼び出しを同じ行の上書きとして描画するため、
-  // 進捗を出してもメッセージ欄が埋まらない
-  ctx.ui.notify(`${EXTENSION_LABEL}: ${name}: fetching /models...`, "info");
-  const ids = await fetchCustomModelIds(name, nativeProvider, ctx);
-  let cache = await loadPiCache(paths.cache);
-  ctx.ui.notify(`${EXTENSION_LABEL}: ${name}: refreshing Pi catalog...`, "info");
-  cache = await refreshFullPiCatalog(cache, paths, ctx);
-
-  const before = sources.providers[name]?.models.length ?? 0;
-  sources.providers[name] = updateSourceProvider(sources.providers[name], ids);
-  const added = sources.providers[name].models.length - before;
-  await saveSources(paths, sources);
-
-  await resolveAndRegisterProvider(pi, name, nativeProvider, sources.providers[name], cache);
-
-  return { total: sources.providers[name].models.length, added };
+  await ensureUnchanged(expected);
+  signal?.throwIfAborted();
+  await writeJsonAtomic(paths.models, native);
+  await refreshRegistry(ctx, signal);
+  return pending.length;
 }

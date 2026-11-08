@@ -118,10 +118,16 @@ export function resolveSourceReference(
 }
 
 export function validateSourceModel(model: SourceModel): void {
-  if (model.id.trim().length === 0) {
+  if (!isRecord(model) || typeof model.id !== "string" || model.id.trim().length === 0) {
     throw new Error("Model id must not be empty.");
   }
 
+  if (model.config != null && typeof model.config !== "string") {
+    throw new Error(`Model ${model.id}: config must be a string or null.`);
+  }
+  if (model.override !== undefined && !isRecord(model.override)) {
+    throw new Error(`Model ${model.id}: override must be an object.`);
+  }
   if (model.override && ("id" in model.override || "config" in model.override)) {
     throw new Error(`Model ${model.id}: override cannot contain id or config.`);
   }
@@ -145,6 +151,12 @@ export function validateSourceProvider(providerName: string, provider: SourcePro
     ids.add(model.id);
   }
 
+  if (provider.config != null && typeof provider.config !== "string") {
+    throw new Error(`Provider ${providerName}: config must be a string or null.`);
+  }
+  if (provider.override !== undefined && !isRecord(provider.override)) {
+    throw new Error(`Provider ${providerName}: override must be an object.`);
+  }
   if (provider.override && ("id" in provider.override || "config" in provider.override)) {
     throw new Error(`Provider ${providerName}: override cannot contain id or config.`);
   }
@@ -182,14 +194,11 @@ export function parseModelIds(payload: unknown): string[] {
   if (!isRecord(payload) || !Array.isArray(payload.data)) {
     throw new Error("The /models response must contain a data array.");
   }
-  if (payload.data.length === 0) {
-    throw new Error("The /models response contains no models.");
-  }
 
   const ids: string[] = [];
   const known = new Set<string>();
   for (const item of payload.data) {
-    if (!isRecord(item) || typeof item.id !== "string" || item.id.length === 0) {
+    if (!isRecord(item) || typeof item.id !== "string" || item.id.trim().length === 0) {
       throw new Error("Every /models entry must contain a non-empty id.");
     }
     if (known.has(item.id)) {

@@ -1,4 +1,5 @@
-import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
@@ -9,7 +10,7 @@ import {
   type SourceProvider,
 } from "./core.ts";
 
-export interface NativeProviderConfig {
+export interface NativeProviderConfig extends Record<string, unknown> {
   baseUrl?: string;
   modelsUrl?: string;
   api?: string;
@@ -19,11 +20,12 @@ export interface NativeProviderConfig {
   models?: unknown[];
 }
 
-export interface NativeModelsFile {
+export interface NativeModelsFile extends Record<string, unknown> {
   providers: Record<string, NativeProviderConfig>;
 }
 
 export interface ConfigPaths {
+  models: string;
   sources: string;
   cache: string;
 }
@@ -31,6 +33,7 @@ export interface ConfigPaths {
 export function getConfigPaths(): ConfigPaths {
   const root = resolve(getAgentDir(), "extensions", "pi-provider-model-sync");
   return {
+    models: join(getAgentDir(), "models.json"),
     sources: join(root, "model-sources.json"),
     cache: join(root, "cache", "models.json"),
   };
@@ -104,24 +107,27 @@ async function readJsonFile<T>(path: string): Promise<T | undefined> {
   }
 }
 
-export async function fileExists(path: string): Promise<boolean> {
+export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  let target = path;
+  let mode = 0o600;
   try {
-    await access(path);
-    return true;
-  } catch {
-    return false;
+    mode = (await stat(path)).mode & 0o777;
+    target = await realpath(path);
+  } catch (error) {
+    if (!isNodeError(error, "ENOENT")) throw error;
+  }
+  const temporary = `${target}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode });
+    await rename(temporary, target);
+  } finally {
+    await rm(temporary, { force: true });
   }
 }
 
-export async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8");
-  await rename(temporary, path);
-}
-
 export async function loadNativeModels(): Promise<NativeModelsFile> {
-  const path = join(getAgentDir(), "models.json");
+  const path = getConfigPaths().models;
   const parsed = await readJsonFile<unknown>(path);
   if (parsed === undefined) return { providers: {} };
   if (!isRecord(parsed) || !isRecord(parsed.providers)) {
@@ -135,7 +141,7 @@ export async function loadNativeModels(): Promise<NativeModelsFile> {
     }
     providers[name] = value as NativeProviderConfig;
   }
-  return { providers };
+  return { ...parsed, providers };
 }
 
 export async function loadModelSources(path: string): Promise<ModelSourcesFile> {
@@ -150,15 +156,9 @@ export async function loadModelSources(path: string): Promise<ModelSourcesFile> 
     if (!isRecord(value) || !Array.isArray(value.models)) {
       throw new Error(`Provider ${name}: models must be an array.`);
     }
-    providers[name] = {
-      models: structuredClone(value.models) as SourceProvider["models"],
-      ...(typeof value.config === "string" && value.config.trim().length > 0
-        ? { config: value.config }
-        : {}),
-      ...(isRecord(value.override) ? { override: structuredClone(value.override) } : {}),
-    };
+    providers[name] = { ...value, models: structuredClone(value.models) } as SourceProvider;
   }
-  return { providers };
+  return { ...parsed, providers };
 }
 
 export async function loadPiCache(path: string): Promise<PiCatalog> {

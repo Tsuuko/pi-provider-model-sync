@@ -109,6 +109,18 @@ describe("validateSourceProvider", () => {
     );
   });
 
+  it("rejects malformed source types before applying or saving", () => {
+    for (const source of [
+      { models: [null] },
+      { models: [{ id: 1 }] },
+      { models: [{ id: "a", config: 1 }] },
+      { models: [{ id: "a", override: [] }] },
+      { models: [], config: 1 },
+      { models: [], override: [] },
+    ]) {
+      assert.throws(() => validateSourceProvider("p", source as never));
+    }
+  });
   it("accepts valid sources", () => {
     validateSourceProvider("p", {
       override: { maxTokens: 100 },
@@ -146,7 +158,8 @@ describe("parseModelIds", () => {
 
   it("rejects missing, empty, and duplicate ids", () => {
     assert.throws(() => parseModelIds({}));
-    assert.throws(() => parseModelIds({ data: [] }));
+    assert.deepEqual(parseModelIds({ data: [] }), []);
+    assert.throws(() => parseModelIds({ data: [{ id: " " }] }));
     assert.throws(() => parseModelIds({ data: [{ id: "" }] }));
     assert.throws(() => parseModelIds({ data: [{ id: "a" }, { id: "a" }] }));
   });
